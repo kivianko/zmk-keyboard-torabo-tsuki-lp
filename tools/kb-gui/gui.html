@@ -52,6 +52,7 @@
 
   /* modal */
   .ov{position:fixed;inset:0;background:rgba(20,23,28,.45);display:none;align-items:flex-start;justify-content:center;padding:6vh 16px;z-index:20}
+  #pickOv{z-index:30}
   .ov.show{display:flex}
   .modal{background:var(--panel);border-radius:14px;max-width:560px;width:100%;max-height:84vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.25)}
   .mhead{display:flex;align-items:center;gap:10px;padding:16px 20px 10px}
@@ -196,8 +197,8 @@
     <div class="mbody">
       <div class="fld" style="max-width:280px"><label>名前 (小文字英数字と_)</label><input type="text" id="cName"></div>
       <div class="fld"><label>同時押しするキー (2個以上クリックで選択)</label><div id="cKeys" class="chips" style="max-height:170px;overflow-y:auto"></div></div>
-      <div class="fld"><label>発動する動作 (バインディング)</label><input type="text" id="cBind" placeholder="&kp ESC / &bt BT_CLR など" list="bindHints">
-        <datalist id="bindHints"><option value="&kp ESC"><option value="&kp TAB"><option value="&bt BT_CLR"><option value="&kp CAPS"><option value="&bootloader"><option value="&mkp MCLK"></datalist></div>
+      <div class="fld"><label>発動する動作</label>
+        <button type="button" class="btn" id="cBindBtn" style="font-family:var(--mono);font-size:13px;width:100%;text-align:left">&kp ESC</button></div>
       <div class="fld" style="max-width:280px"><label>対象レイヤー (空=全レイヤー)</label><div id="cLayers" class="chips"></div></div>
       <div class="fld" style="max-width:280px"><label>タイムアウト ms (空=既定50)</label><input type="text" id="cTimeout" inputmode="numeric"></div>
     </div>
@@ -352,11 +353,12 @@ function serialize(){
   });
   return out;
 }
-function openPick(i){
-  editIdx=i;
-  const cur=parseBind(layers[curLayer][i]);
+let pickCb=null;
+function openPicker(binding, label, cb){
+  pickCb=cb;
+  const cur=parseBind(binding);
   const def=BEHS.find(x=>x.b===cur.beh);
-  pick={beh:def?cur.beh:"raw", raw:layers[curLayer][i]};
+  pick={beh:def?cur.beh:"raw", raw:binding};
   if(def){
     def.params.forEach((p,k)=>{
       if(p==="key") pick.key=cur.p[def.params.indexOf("mod")>=0||def.params.indexOf("layer")>=0?1:0]||"A";
@@ -365,9 +367,15 @@ function openPick(i){
       if(p==="choice") pick.choice=cur.p.join(" ")||def.choices[0];
     });
   }
-  document.getElementById("pickPos").textContent="pos "+i+" / "+LAYER_INFO[curLayer].name;
+  document.getElementById("pickPos").textContent=label;
   renderChips(); renderParams();
   pickOv.classList.add("show");
+}
+function openPick(i){
+  editIdx=i;
+  openPicker(layers[curLayer][i], "pos "+i+" / "+LAYER_INFO[curLayer].name, b=>{
+    layers[curLayer][i]=b; save(); render(); autoApply(curLayer,i,b);
+  });
 }
 function renderChips(){
   const c=document.getElementById("behChips"); c.innerHTML="";
@@ -450,8 +458,8 @@ function renderParams(){
 function upd(){preview.textContent=serialize();}
 document.getElementById("pickApply").addEventListener("click",()=>{
   const b=serialize();
-  layers[curLayer][editIdx]=b; save(); pickOv.classList.remove("show"); render();
-  autoApply(curLayer, editIdx, b);
+  pickOv.classList.remove("show");
+  if(pickCb) pickCb(b);
 });
 async function autoApply(l,pos,binding){
   if(binding===ORIG[l]?.[pos]) return;
@@ -646,7 +654,7 @@ function openCombo(idx){
   editCombo=idx;
   const c= idx>=0? EX.combos[idx] : {name:"combo_"+(EX.combos.length+1),binding:"&kp ESC",positions:[],layers:[],timeout:null};
   $("comboTitle").textContent = idx>=0? "コンボを編集":"コンボを追加";
-  $("cName").value=c.name; $("cBind").value=c.binding; $("cTimeout").value=c.timeout||"";
+  $("cName").value=c.name; cBindVal=c.binding; $("cBindBtn").textContent=c.binding; $("cTimeout").value=c.timeout||"";
   cSelKeys=new Set(c.positions); cSelLayers=new Set(c.layers);
   chipSelector($("cKeys"), null, cSelKeys);
   const cl=$("cLayers"); cl.innerHTML="";
@@ -660,6 +668,10 @@ function openCombo(idx){
   $("comboDelete").style.display = idx>=0? "":"none";
   $("comboOv").classList.add("show");
 }
+let cBindVal="&kp ESC";
+$("cBindBtn").addEventListener("click",()=>{
+  openPicker(cBindVal, "コンボの動作", b=>{ cBindVal=b; $("cBindBtn").textContent=b; });
+});
 $("comboAdd").addEventListener("click",()=>openCombo(-1));
 $("comboClose").addEventListener("click",()=>$("comboOv").classList.remove("show"));
 $("comboCancel").addEventListener("click",()=>$("comboOv").classList.remove("show"));
@@ -671,8 +683,8 @@ $("comboApply").addEventListener("click",()=>{
   const name=$("cName").value.trim();
   if(!/^[a-z_][a-z0-9_]*$/.test(name)) return alert("名前は小文字英数字と_のみです");
   if(cSelKeys.size<2) return alert("キーを2個以上選んでください");
-  const bind=$("cBind").value.trim();
-  if(!bind.startsWith("&")) return alert("バインディングは & から始めてください (例: &kp ESC)");
+  const bind=cBindVal.trim();
+  if(!bind.startsWith("&")) return alert("バインディングが不正です");
   const c={name,binding:bind,positions:[...cSelKeys].sort((a,b)=>a-b),layers:[...cSelLayers].sort(),timeout:parseInt($("cTimeout").value)||null};
   if(editCombo>=0) EX.combos[editCombo]=c; else EX.combos.push(c);
   $("comboOv").classList.remove("show"); renderCombos();
