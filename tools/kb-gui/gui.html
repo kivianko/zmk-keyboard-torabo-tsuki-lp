@@ -96,6 +96,7 @@
 
   <div class="bar">
     <span class="count" id="count"></span>
+    <button class="btn" id="quitBtn" style="font-size:12px;color:var(--muted)" title="ローカルサーバを終了します">サーバ停止</button>
     <span style="flex:1"></span>
     <span class="count" id="applyStatus"></span>
     <button class="btn" id="resetBtn">すべて元に戻す</button>
@@ -446,6 +447,13 @@ applyBtn.addEventListener("click",async()=>{
     else setStatus(`⚠ ${okN}/${j.results.length}件のみ反映`,true);
   }catch(e){ setStatus("✕ "+e.message,true); }
   applyBtn.disabled=false;
+});
+
+document.getElementById("quitBtn").addEventListener("click",async()=>{
+  if(!confirm("サーバを停止しますか？(このタブは使えなくなります)"))return;
+  try{await fetch("/quit",{method:"POST"});}catch(e){}
+  setStatus("サーバを停止しました。このタブは閉じてOKです");
+  document.getElementById("applyBtn").disabled=true;
 });
 
 // ===== 起動: サーバから現在のキーマップを取得 =====

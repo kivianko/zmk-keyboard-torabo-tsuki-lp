@@ -102,6 +102,11 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": "not found"}, 404)
 
     def do_POST(self):
+        if self.path == "/quit":
+            self._json({"ok": True})
+            import threading
+            threading.Timer(0.3, lambda: os._exit(0)).start()
+            return
         if self.path != "/apply":
             return self._json({"error": "not found"}, 404)
         try:
