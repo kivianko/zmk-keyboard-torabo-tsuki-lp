@@ -23,5 +23,10 @@ include:
     shield: torabo_tsuki_lp_right
     snippet: "studio-rpc-usb-uart split-central input-trackball input-listener input-split-listener"
     artifact-name: torabo_tsuki_lp_double_ball_right_central
+  # 診断用: USBログ付き右central (オートマウスレイヤー調査、確認後に削除する)
+  - board: bmp_boost
+    shield: torabo_tsuki_lp_right
+    snippet: "studio-rpc-usb-uart split-central input-trackball input-listener zmk-usb-logging"
+    artifact-name: torabo_tsuki_lp_right_central_debug
   - board: bmp_boost
     shield: settings_reset
