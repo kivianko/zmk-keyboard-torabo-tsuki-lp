@@ -78,6 +78,25 @@ def write_keymap(layers, only_layers=None):
         )
     open(KEYMAP, "w").write(src)
 
+def add_layer():
+    """keymap.keymapの末尾に全&transの新レイヤーを追記し、新しいレイヤー数を返す"""
+    layers = parse_layers()
+    n = len(layers)
+    if n >= 10:
+        raise RuntimeError("レイヤーは最大10までにしています")
+    lay = ["&trans"] * 66
+    rows, p = [], 0
+    for cnt in ROWS:
+        rows.append("  " + "  ".join(lay[p:p + cnt]))
+        p += cnt
+    block = f"\n\n        layer_{n} {{\n            bindings = <\n" + "\n".join(rows) + "\n            >;\n        }};"
+    src = open(KEYMAP).read()
+    last = list(re.finditer(r"layer_\d+\s*\{.*?\};", src, re.S))[-1]
+    src = src[:last.end()] + block + src[last.end():]
+    open(KEYMAP, "w").write(src)
+    return n + 1
+
+
 # ===== コンボ =====
 
 def parse_combos():
@@ -245,6 +264,8 @@ class Handler(BaseHTTPRequestHandler):
                 if "settings" in data:
                     write_settings(data["settings"])
                 self._json({"ok": True})
+            elif self.path == "/layers/add":
+                self._json({"count": add_layer()})
             elif self.path == "/build":
                 if BUILD["running"]:
                     return self._json({"error": "ビルド実行中です"}, 409)
@@ -263,9 +284,14 @@ class Handler(BaseHTTPRequestHandler):
         results, p = [], None
         try:
             p = Pusher()
+            dev_layers = len(p.keymap.layers)
             for ch in changes:
-                ok = p.set_binding(int(ch["layer"]), int(ch["pos"]), ch["binding"])
-                results.append({"layer": ch["layer"], "pos": ch["pos"], "binding": ch["binding"], "ok": bool(ok)})
+                li = int(ch["layer"])
+                if li >= dev_layers:  # 実機にまだ無いレイヤー → ソースのみ(要ビルド)
+                    results.append({"layer": li, "pos": ch["pos"], "binding": ch["binding"], "ok": False, "needsBuild": True})
+                    continue
+                ok = p.set_binding(li, int(ch["pos"]), ch["binding"])
+                results.append({"layer": li, "pos": ch["pos"], "binding": ch["binding"], "ok": bool(ok)})
             saved = p.save() if any(r["ok"] for r in results) else False
         finally:
             if p:
@@ -273,7 +299,7 @@ class Handler(BaseHTTPRequestHandler):
         layers = parse_layers()
         changed = set()
         for r in results:
-            if r["ok"]:
+            if r["ok"] or r.get("needsBuild"):
                 layers[r["layer"]][r["pos"]] = r["binding"]
                 changed.add(r["layer"])
         if changed:

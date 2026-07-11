@@ -214,12 +214,13 @@
 // ===== データはサーバから取得 =====
 let DATA = null;
 
-const LAYER_INFO = [
-  {name:"layer_0", jp:"ベース"},
-  {name:"layer_1", jp:"マウス(自動)"},
-  {name:"layer_2", jp:"記号(左親指)"},
-  {name:"layer_3", jp:"ナビ/Fn(右親指)"},
-];
+const LAYER_HINTS = ["ベース","マウス(自動)","記号(左親指)","ナビ/Fn(右親指)"];
+const LAYER_INFO = [];
+function refreshLayerInfo(n){
+  LAYER_INFO.length = 0;
+  for(let i=0;i<n;i++) LAYER_INFO.push({name:"layer_"+i, jp:LAYER_HINTS[i]||"追加レイヤー"});
+}
+refreshLayerInfo(4);
 const ROWS = [12,12,14,14,14]; // keymapファイルの行構成(L)
 
 // ===== キーコードカタログ =====
@@ -316,18 +317,25 @@ function render(){
   document.getElementById("count").innerHTML=n?("変更 <b>"+n+"</b> 件"):"変更なし";
   document.getElementById("exportBtn").disabled=!n;
 }
-function countChanges(){let n=0;for(let l=0;l<4;l++)for(let i=0;i<66;i++)if(layers[l][i]!==ORIG[l][i])n++;return n;}
+function countChanges(){let n=0;for(let l=0;l<layers.length;l++)for(let i=0;i<66;i++)if(layers[l][i]!==ORIG[l][i])n++;return n;}
 
 // ===== レイヤータブ =====
 const tabs=document.getElementById("tabs");
-LAYER_INFO.forEach((L,i)=>{
-  const t=document.createElement("button");
-  t.className="tab"; t.innerHTML="<span></span><small></small>";
-  t.querySelector("span").textContent=L.name; t.querySelector("small").textContent=L.jp;
-  t.addEventListener("click",()=>{curLayer=i;[...tabs.children].forEach((c,j)=>c.classList.toggle("on",j===i));render();});
-  tabs.appendChild(t);
-});
-tabs.children[0].classList.add("on");
+function renderTabs(){
+  tabs.innerHTML="";
+  LAYER_INFO.forEach((L,i)=>{
+    const t=document.createElement("button");
+    t.className="tab"+(i===curLayer?" on":""); t.innerHTML="<span></span><small></small>";
+    t.querySelector("span").textContent=L.name; t.querySelector("small").textContent=L.jp;
+    t.addEventListener("click",()=>{curLayer=i;renderTabs();render();});
+    tabs.appendChild(t);
+  });
+  const add=document.createElement("button");
+  add.className="tab"; add.textContent="＋"; add.title="レイヤーを追加(ビルドが必要)";
+  add.addEventListener("click",addLayerFlow);
+  tabs.appendChild(add);
+}
+renderTabs();
 
 // ===== ピッカー =====
 const pickOv=document.getElementById("pickOv"), paramArea=document.getElementById("paramArea"), preview=document.getElementById("preview");
@@ -441,8 +449,22 @@ function renderParams(){
 }
 function upd(){preview.textContent=serialize();}
 document.getElementById("pickApply").addEventListener("click",()=>{
-  layers[curLayer][editIdx]=serialize(); save(); pickOv.classList.remove("show"); render();
+  const b=serialize();
+  layers[curLayer][editIdx]=b; save(); pickOv.classList.remove("show"); render();
+  autoApply(curLayer, editIdx, b);
 });
+async function autoApply(l,pos,binding){
+  if(binding===ORIG[l]?.[pos]) return;
+  setStatus("反映中...");
+  try{
+    const r=await fetch("/apply",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({changes:[{layer:l,pos,binding}]})});
+    const j=await r.json(); if(j.error) throw new Error(j.error);
+    const res=j.results[0];
+    if(res.ok){ ORIG[l][pos]=binding; save(); render(); setStatus("✓ 実機に反映しました"); }
+    else if(res.needsBuild){ ORIG[l][pos]=binding; save(); render(); setStatus("ℹ 新レイヤーの編集はビルド時に反映されます"); }
+    else setStatus("⚠ 反映失敗 (右下の「実機に反映」で再試行できます)",true);
+  }catch(e){ setStatus("✕ "+e.message+" (「実機に反映」で再試行可)",true); }
+}
 document.getElementById("pickCancel").addEventListener("click",()=>pickOv.classList.remove("show"));
 document.getElementById("pickClose").addEventListener("click",()=>pickOv.classList.remove("show"));
 pickOv.addEventListener("click",e=>{if(e.target===pickOv)pickOv.classList.remove("show");});
@@ -451,7 +473,7 @@ pickOv.addEventListener("click",e=>{if(e.target===pickOv)pickOv.classList.remove
 const expOv=document.getElementById("expOv");
 document.getElementById("exportBtn").addEventListener("click",()=>{
   let sum="以下のキーマップ変更を反映して書き込んでください:\n";
-  for(let l=0;l<4;l++)for(let i=0;i<66;i++)
+  for(let l=0;l<layers.length;l++)for(let i=0;i<66;i++)
     if(layers[l][i]!==ORIG[l][i]) sum+=`layer_${l} pos${i}: ${ORIG[l][i]} → ${layers[l][i]}\n`;
   document.getElementById("expSummary").value=sum;
   document.getElementById("expFull").value=genKeymap();
@@ -500,12 +522,29 @@ function genKeymap(){
   return out;
 }
 
+// ===== レイヤー追加 =====
+async function addLayerFlow(){
+  if(!confirm(`layer_${LAYER_INFO.length} を追加しますか？\n(反映には自動ビルド&書き込みが走ります。1-2分)`)) return;
+  try{
+    const j=await (await fetch("/layers/add",{method:"POST"})).json();
+    if(j.error) throw new Error(j.error);
+    refreshLayerInfo(j.count);
+    ORIG.push(Array(66).fill("&trans")); layers.push(Array(66).fill("&trans"));
+    save(); curLayer=j.count-1; renderTabs(); render();
+    setStatus(`layer_${j.count-1} を追加。ビルド中(1-2分)...`);
+    document.getElementById("buildPanel").hidden=false;
+    await fetch("/build",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({artifact:"torabo_tsuki_lp_right_central"})});
+    const ok=await pollBuild();
+    setStatus(ok? `✓ layer_${j.count-1} が使えるようになりました`:"✕ ビルド失敗 (ログ参照)", !ok);
+  }catch(e){ setStatus("✕ "+e.message,true); }
+}
+
 // ===== 実機反映 =====
 const applyBtn=document.getElementById("applyBtn"), applyStatus=document.getElementById("applyStatus");
 function setStatus(t,err){applyStatus.textContent=t;applyStatus.style.color=err?"#b04a2a":"var(--acc)";}
 applyBtn.addEventListener("click",async()=>{
   const changes=[];
-  for(let l=0;l<4;l++)for(let i=0;i<66;i++)
+  for(let l=0;l<layers.length;l++)for(let i=0;i<66;i++)
     if(layers[l][i]!==ORIG[l][i]) changes.push({layer:l,pos:i,binding:layers[l][i]});
   if(!changes.length)return;
   applyBtn.disabled=true; setStatus("反映中...");
@@ -535,11 +574,12 @@ document.getElementById("quitBtn").addEventListener("click",async()=>{
     const r=await fetch("/keymap"); const j=await r.json();
     if(j.error) throw new Error(j.error);
     DATA=j;
+    refreshLayerInfo(j.layers.length);
     ORIG.length=0; j.layers.forEach(l=>ORIG.push(l.slice()));
     try{ const st=JSON.parse(localStorage.getItem("tt-keymap")||"null");
-      layers=(st&&st.length===4&&st.every(l=>l.length===66))?st:ORIG.map(l=>l.slice());
+      layers=(st&&st.length===ORIG.length&&st.every(l=>l.length===66))?st:ORIG.map(l=>l.slice());
     }catch(e){ layers=ORIG.map(l=>l.slice()); }
-    render();
+    renderTabs(); render();
   }catch(e){ setStatus("✕ サーバに接続できません: "+e.message,true); }
 })();
 
