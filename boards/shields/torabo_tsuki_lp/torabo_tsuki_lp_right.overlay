@@ -13,9 +13,9 @@
 
 /* トラックボール操作で layer_1 を一時有効化し、無操作1秒で解除。
  * excluded-positions はクリック系キー(D/F/J/K=27/28/33/34, 中央サム=30/31)。押しても解除しない。
- * require-prior-idle-ms: 直前200ms以内にキー入力があれば起動しない(タイピング中の誤爆防止)。 */
+ * ※ require-prior-idle-ms は付けない: 付けると未活性中のキー入力で起動が延期され続け、
+ *   ボールを動かしながらキーを押すと永久に活性化しない(初回活性化を阻害する)ため。 */
 &zip_temp_layer {
-    require-prior-idle-ms = <200>;
     excluded-positions = <27 28 30 31 33 34>;
 };
 
