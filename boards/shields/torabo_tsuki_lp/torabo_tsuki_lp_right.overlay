@@ -2,8 +2,21 @@
 #include <input/processors.dtsi>
 #include <dt-bindings/zmk/input_transform.h>
 
+/* オートマウスレイヤー: トラックボール操作で有効化する layer_1 */
+#define AUTO_MOUSE_LAYER 1
+
 &pointing_listener {
-    input-processors = <&zip_xy_transform (INPUT_TRANSFORM_X_INVERT | INPUT_TRANSFORM_Y_INVERT)>;
+    input-processors =
+        <&zip_xy_transform (INPUT_TRANSFORM_X_INVERT | INPUT_TRANSFORM_Y_INVERT)>,
+        <&zip_temp_layer AUTO_MOUSE_LAYER 1000>;
+};
+
+/* トラックボール操作で layer_1 を一時有効化し、無操作1秒で解除。
+ * excluded-positions はクリック系キー(D/F/J/K=27/28/33/34, 中央サム=30/31)。押しても解除しない。
+ * require-prior-idle-ms: 直前200ms以内にキー入力があれば起動しない(タイピング中の誤爆防止)。 */
+&zip_temp_layer {
+    require-prior-idle-ms = <200>;
+    excluded-positions = <27 28 30 31 33 34>;
 };
 
 &size_s_transform {
