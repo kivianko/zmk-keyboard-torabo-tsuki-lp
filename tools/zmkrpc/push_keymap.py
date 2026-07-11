@@ -13,7 +13,7 @@
 import os, re, subprocess, sys, tempfile
 
 sys.path.insert(0, os.path.dirname(__file__))
-from client import StudioClient  # noqa: E402
+from client import open_client  # noqa: E402
 import studio_pb2  # noqa: E402
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -93,7 +93,7 @@ def load_position_map_s():
 
 class Pusher:
     def __init__(self):
-        self.c = StudioClient()
+        self.c = open_client()
         self.keymap = self._get_keymap()
         self.behs = self._get_behaviors()
         self.l2dev, self.space = self._detect_mapping()

@@ -90,6 +90,23 @@ class StudioClient:
         raise TimeoutError("対応するRPC応答が来ません")
 
 
+def open_client(prefer=None):
+    """トランスポート自動選択: USBポートがあればUSB、無ければBLE。ZMK_TRANSPORT=usb|ble で強制"""
+    prefer = prefer or os.environ.get("ZMK_TRANSPORT")
+    if prefer == "ble":
+        from ble import BLEStudioClient
+        return BLEStudioClient()
+    if prefer == "usb":
+        return StudioClient()
+    try:
+        return StudioClient()
+    except RuntimeError as e:
+        if "見つかりません" not in str(e):
+            raise
+        from ble import BLEStudioClient
+        return BLEStudioClient()
+
+
 if __name__ == "__main__":
     c = StudioClient()
     print(f"port: {c.port}")
