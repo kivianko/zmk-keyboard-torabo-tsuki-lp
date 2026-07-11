@@ -70,6 +70,7 @@
   .item:last-child{border-bottom:none}
   .item .c{font-family:var(--mono);font-size:12px;color:var(--muted)}
   .item.sel{background:var(--acc-tint)}
+  .cathead{padding:6px 12px 3px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:#f4f5f7;position:sticky;top:0}
   .item b{font-weight:600;min-width:52px}
   .preview{font-family:var(--mono);font-size:13px;background:#15181e;color:#e7e9ee;border-radius:8px;padding:10px 14px;margin:12px 0 4px;word-break:break-all}
   .mfoot{display:flex;gap:10px;justify-content:flex-end;padding:12px 20px 18px;border-top:1px solid var(--line-soft)}
@@ -231,7 +232,7 @@ for(let n=1;n<=12;n++) add("F"+n,"F"+n,"function","Fn");
 [["ESC","Esc","escape"],["TAB","Tab⇥",""],["CAPS","Caps","capslock"],["SPACE","Space","スペース 空白"],["RET","Enter⏎","return enter 改行"],["BSPC","⌫ BS","backspace 削除"],["DEL","Del","delete"],["INS","Ins","insert"],["HOME","Home",""],["END","End",""],["PG_UP","PgUp","pageup"],["PAGE_DOWN","PgDn","pagedown"],["LEFT","←","left"],["RIGHT","→","right"],["UP_ARROW","↑","up"],["DOWN","↓","down"],["PSCRN","PrtSc","printscreen"]].forEach(([c,l,t])=>add(c,l,t+" 移動","移動"));
 [["SEMI",";",""],["COLON",":",""],["SQT","'","quote"],["DQT","\"","doublequote"],["COMMA",",",""],["DOT",".","period"],["FSLH","/","slash"],["QMARK","?","question"],["BSLH","\\","backslash"],["PIPE","|",""],["MINUS","-",""],["UNDER","_","underscore"],["EQUAL","=",""],["PLUS","+",""],["LBKT","[","bracket"],["RBKT","]","bracket"],["LBRC","{","brace"],["RBRC","}","brace"],["LPAR","(","paren"],["RPAR",")","paren"],["GRAVE","`",""],["TILDE","~",""],["EXCL","!","exclamation"],["AT","@",""],["HASH","#",""],["DLLR","$","dollar"],["PRCNT","%","percent"],["CARET","^",""],["AMPS","&","ampersand"],["STAR","*","asterisk"]].forEach(([c,l,t])=>add(c,l,t+" 記号","記号"));
 [["LSHFT","⇧L","shift"],["RSHFT","⇧R","shift"],["LCTRL","CtrlL","control"],["RCTRL","CtrlR","control"],["LGUI","⌘L","gui cmd win"],["RGUI","⌘R","gui cmd win"],["LALT","⌥L","alt option"],["RALT","⌥R","alt option"]].forEach(([c,l,t])=>add(c,l,t+" 修飾","修飾"));
-[["LANGUAGE_1","かな","lang1 kana ime"],["LANGUAGE_2","英数","lang2 eisu ime"],["K_MUTE","Mute","ミュート"],["C_VOL_UP","Vol+","volume 音量"],["C_VOL_DN","Vol-","volume 音量"],["C_PP","⏯","play pause 再生"],["C_NEXT","⏭","next"],["C_PREV","⏮","prev"],["C_BRI_UP","☀+","brightness 明るさ"],["C_BRI_DN","☀-","brightness 明るさ"]].forEach(([c,l,t])=>add(c,l,t,"その他"));
+[["INT1","ろ","int1 ro 日本語"],["INT3","¥","int3 yen 円 日本語"],["INT_HENKAN","変換","henkan 日本語"],["INT_MUHENKAN","無変換","muhenkan 日本語"],["INT_KANA","カナ","katakana hiragana 日本語"],["K_APP","Menu","app context menu"],["LANGUAGE_1","かな","lang1 kana ime"],["LANGUAGE_2","英数","lang2 eisu ime"],["K_MUTE","Mute","ミュート"],["C_VOL_UP","Vol+","volume 音量"],["C_VOL_DN","Vol-","volume 音量"],["C_PP","⏯","play pause 再生"],["C_NEXT","⏭","next"],["C_PREV","⏮","prev"],["C_BRI_UP","☀+","brightness 明るさ"],["C_BRI_DN","☀-","brightness 明るさ"]].forEach(([c,l,t])=>add(c,l,t,"その他"));
 
 const KC_LABEL = {}; KC.forEach(k=>KC_LABEL[k.code]=k.label);
 Object.assign(KC_LABEL, {ESCAPE:"Esc",BACKSPACE:"⌫ BS",ENTER:"Enter⏎",RETURN:"Enter⏎",DELETE:"Del",PG_DN:"PgDn",PAGE_UP:"PgUp",UP:"↑",SINGLE_QUOTE:"'",DOUBLE_QUOTES:"\"",BACKSLASH:"\\",LEFT_BRACKET:"[",RIGHT_BRACKET:"]",LEFT_BRACE:"{",RIGHT_BRACE:"}",LEFT_SHIFT:"⇧L",RIGHT_SHIFT:"⇧R",LEFT_CONTROL:"CtrlL",RIGHT_CONTROL:"CtrlR",LEFT_GUI:"⌘L",RIGHT_GUI:"⌘R",LEFT_ALT:"⌥L",RIGHT_ALT:"⌥R",NUMBER_1:"1",NUMBER_2:"2",NUMBER_3:"3",NUMBER_4:"4",NUMBER_5:"5",NUMBER_6:"6",NUMBER_7:"7",NUMBER_8:"8",NUMBER_9:"9",NUMBER_0:"0"});
@@ -389,13 +390,21 @@ function keySearch(onSel,initial){
   let items=[], sel=0;
   const run=q=>{
     q=q.toLowerCase();
-    items=KC.filter(k=>!q||k.terms.toLowerCase().includes(q)||k.label.toLowerCase()===q).slice(0,40);
+    items=KC.filter(k=>!q||k.terms.toLowerCase().includes(q)||k.label.toLowerCase()===q);
+    if(q) items=items.slice(0,50);
     sel=0; list.innerHTML="";
+    let lastCat=null;
     items.forEach((k,idx)=>{
+      if(!q && k.cat!==lastCat){
+        lastCat=k.cat;
+        const h=document.createElement("div"); h.className="cathead"; h.textContent=k.cat;
+        list.appendChild(h);
+      }
       const it=document.createElement("div"); it.className="item"+(idx===sel?" sel":"");
       it.innerHTML="<b></b><span class='c'></span><span class='c'>"+k.cat+"</span>";
       it.querySelector("b").textContent=k.label; it.querySelector(".c").textContent=k.code;
       it.addEventListener("click",()=>{onSel(k.code);});
+      k.el=it;
       list.appendChild(it);
     });
   };
@@ -405,8 +414,8 @@ function keySearch(onSel,initial){
     else if(e.key==="ArrowUp"){sel=Math.max(sel-1,0);e.preventDefault();}
     else if(e.key==="Enter"){if(items[sel])onSel(items[sel].code);e.preventDefault();return;}
     else return;
-    [...list.children].forEach((c,j)=>c.classList.toggle("sel",j===sel));
-    list.children[sel]&&list.children[sel].scrollIntoView({block:"nearest"});
+    items.forEach((k,j)=>k.el&&k.el.classList.toggle("sel",j===sel));
+    items[sel]&&items[sel].el&&items[sel].el.scrollIntoView({block:"nearest"});
   });
   run(""); wrap.appendChild(inp); wrap.appendChild(list);
   setTimeout(()=>inp.focus(),50);
