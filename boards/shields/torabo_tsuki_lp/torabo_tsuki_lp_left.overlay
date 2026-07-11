@@ -23,13 +23,13 @@
     excluded-positions = <12 13 16 17>;
 };
 /* スクロールレイヤー: layer_4が有効な間はボールの動きをスクロールに変換
- * 方向はカーソルと同じ反転を適用。速度は zip_scroll_scaler 1 8 (1/8倍) で調整可 */
+ * 方向はカーソルと同じ反転を適用。速度は zip_scroll_scaler 1 12 (1/12倍) で調整可 */
 &pointing_listener {
     scroller {
         layers = <4>;
         input-processors =
             <&zip_xy_transform (INPUT_TRANSFORM_X_INVERT)>,
             <&zip_xy_to_scroll_mapper>,
-            <&zip_scroll_scaler 1 8>;
+            <&zip_scroll_scaler 1 12>;
     };
 };
