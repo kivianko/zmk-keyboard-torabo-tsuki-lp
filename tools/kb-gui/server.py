@@ -89,7 +89,7 @@ def add_layer():
     for cnt in ROWS:
         rows.append("  " + "  ".join(lay[p:p + cnt]))
         p += cnt
-    block = f"\n\n        layer_{n} {{\n            bindings = <\n" + "\n".join(rows) + "\n            >;\n        }};"
+    block = f"\n\n        layer_{n} {{\n            bindings = <\n" + "\n".join(rows) + "\n            >;\n        };"
     src = open(KEYMAP).read()
     last = list(re.finditer(r"layer_\d+\s*\{.*?\};", src, re.S))[-1]
     src = src[:last.end()] + block + src[last.end():]
