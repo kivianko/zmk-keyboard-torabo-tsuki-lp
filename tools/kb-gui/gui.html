@@ -91,6 +91,13 @@
   </header>
   <p class="hint">キーをクリックして割り当てを変更 → 右下の<b>「実機に反映」</b>。キーボードをUSB接続し、ZMK Studio等の接続は切っておいてください。</p>
 
+  <div class="tabs" id="viewTabs" style="margin-bottom:16px">
+    <button class="tab on" data-view="keymap">キーマップ<small>RPC即反映</small></button>
+    <button class="tab" data-view="combos">コンボ<small>要ビルド</small></button>
+    <button class="tab" data-view="settings">設定<small>要ビルド</small></button>
+  </div>
+
+  <div id="viewKeymap">
   <div class="tabs" id="tabs"></div>
   <div class="boardwrap"><div class="board" id="board"></div></div>
 
@@ -102,6 +109,52 @@
     <button class="btn" id="resetBtn">すべて元に戻す</button>
     <button class="btn" id="exportBtn">書き出し</button>
     <button class="btn primary" id="applyBtn">実機に反映</button>
+  </div>
+  </div><!-- /viewKeymap -->
+
+  <!-- ===== コンボビュー ===== -->
+  <div id="viewCombos" hidden>
+    <div class="boardwrap" style="padding:14px 18px">
+      <div id="comboList"></div>
+      <button class="btn" id="comboAdd" style="margin-top:10px">＋ コンボを追加</button>
+    </div>
+  </div>
+
+  <!-- ===== 設定ビュー ===== -->
+  <div id="viewSettings" hidden>
+    <div class="boardwrap" style="padding:20px">
+      <h3 style="margin:0 0 8px;font-size:15px">オートマウスレイヤー</h3>
+      <label style="display:flex;gap:8px;align-items:center;font-size:14px;margin:8px 0">
+        <input type="checkbox" id="stAml"> 有効 (トラックボール操作でマウスレイヤー)
+      </label>
+      <div class="fld" style="max-width:260px"><label>解除タイムアウト (ms)</label>
+        <input type="text" id="stAmlTimeout" inputmode="numeric"></div>
+      <div class="fld"><label>押しても解除しないキー (クリック系を選択)</label>
+        <div id="stExcl" class="chips"></div></div>
+      <h3 style="margin:20px 0 8px;font-size:15px">トラックボール</h3>
+      <label style="display:flex;gap:8px;align-items:center;font-size:14px;margin:6px 0">
+        <input type="checkbox" id="stInvX"> 左右反転 (X)
+      </label>
+      <label style="display:flex;gap:8px;align-items:center;font-size:14px;margin:6px 0">
+        <input type="checkbox" id="stInvY"> 上下反転 (Y)
+      </label>
+      <div class="fld" style="max-width:260px"><label>感度 CPI (空欄=既定)</label>
+        <input type="text" id="stCpi" inputmode="numeric" placeholder="例: 800 / 1200 / 1600"></div>
+      <h3 style="margin:20px 0 8px;font-size:15px">電源</h3>
+      <div class="fld" style="max-width:260px"><label>スリープまでの時間 (分) ※左右両方の書き込みが必要</label>
+        <input type="text" id="stSleep" inputmode="numeric"></div>
+    </div>
+  </div>
+
+  <!-- ===== ビルドパネル (コンボ/設定共通) ===== -->
+  <div id="buildPanel" hidden>
+    <div class="bar">
+      <span class="count" id="exDirty"></span>
+      <span style="flex:1"></span>
+      <button class="btn primary" id="exSaveBuild">保存してビルド&書き込み (右手側)</button>
+      <button class="btn" id="exBuildLeft" hidden>左手側も書き込み</button>
+    </div>
+    <pre id="buildLog" hidden style="max-height:260px;overflow-y:auto;background:#15181e;color:#e7e9ee;border-radius:10px;padding:12px 16px;font-size:11.5px;line-height:1.5;margin-top:10px"></pre>
   </div>
 </div>
 
@@ -132,6 +185,26 @@
       <p class="exp-note"><b>② keymap.keymap 全文</b> — 検証用/直接置き換え用</p>
       <textarea id="expFull" rows="9" readonly></textarea>
       <div class="copyrow"><button class="btn" data-copy="expFull">全文をコピー</button><span class="ok">コピーしました ✓</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- combo editor modal -->
+<div class="ov" id="comboOv">
+  <div class="modal" role="dialog" aria-modal="true" style="max-width:620px">
+    <div class="mhead"><h2 id="comboTitle">コンボ</h2><button class="x" id="comboClose" aria-label="閉じる">✕</button></div>
+    <div class="mbody">
+      <div class="fld" style="max-width:280px"><label>名前 (小文字英数字と_)</label><input type="text" id="cName"></div>
+      <div class="fld"><label>同時押しするキー (2個以上クリックで選択)</label><div id="cKeys" class="chips" style="max-height:170px;overflow-y:auto"></div></div>
+      <div class="fld"><label>発動する動作 (バインディング)</label><input type="text" id="cBind" placeholder="&kp ESC / &bt BT_CLR など" list="bindHints">
+        <datalist id="bindHints"><option value="&kp ESC"><option value="&kp TAB"><option value="&bt BT_CLR"><option value="&kp CAPS"><option value="&bootloader"><option value="&mkp MCLK"></datalist></div>
+      <div class="fld" style="max-width:280px"><label>対象レイヤー (空=全レイヤー)</label><div id="cLayers" class="chips"></div></div>
+      <div class="fld" style="max-width:280px"><label>タイムアウト ms (空=既定50)</label><input type="text" id="cTimeout" inputmode="numeric"></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn" id="comboDelete" style="margin-right:auto;color:#b04a2a">削除</button>
+      <button class="btn" id="comboCancel">キャンセル</button>
+      <button class="btn primary" id="comboApply">OK</button>
     </div>
   </div>
 </div>
@@ -468,5 +541,167 @@ document.getElementById("quitBtn").addEventListener("click",async()=>{
     }catch(e){ layers=ORIG.map(l=>l.slice()); }
     render();
   }catch(e){ setStatus("✕ サーバに接続できません: "+e.message,true); }
+})();
+
+// ================= コンボ & 設定 & ビルド =================
+let EX=null, EX_ORIG=null, editCombo=-1;
+const $=id=>document.getElementById(id);
+const deep=o=>JSON.parse(JSON.stringify(o));
+const exDirtyEl=$("exDirty");
+
+// --- ビュー切替 ---
+document.querySelectorAll("#viewTabs .tab").forEach(t=>t.addEventListener("click",()=>{
+  document.querySelectorAll("#viewTabs .tab").forEach(x=>x.classList.toggle("on",x===t));
+  const v=t.dataset.view;
+  $("viewKeymap").hidden = v!=="keymap";
+  $("viewCombos").hidden = v!=="combos";
+  $("viewSettings").hidden = v!=="settings";
+  $("buildPanel").hidden = v==="keymap";
+}));
+
+function keyLabelAt(pos){ // layer0の内容でキーに名前を付ける
+  const d=display(ORIG[0][pos]||"&trans"); return d.val==="▽"?("pos"+pos):d.val;
+}
+function exDirty(){ return JSON.stringify(EX)!==JSON.stringify(EX_ORIG); }
+function updateExBar(){
+  if(!EX)return;
+  const d=exDirty();
+  exDirtyEl.textContent = d? "未保存の変更があります":"変更なし";
+  $("exSaveBuild").disabled=!d;
+}
+
+// --- コンボ一覧 ---
+function renderCombos(){
+  const el=$("comboList"); el.innerHTML="";
+  if(!EX.combos.length) el.innerHTML='<p style="color:var(--muted);font-size:13.5px;margin:6px 0">コンボはまだありません</p>';
+  EX.combos.forEach((c,idx)=>{
+    const d=document.createElement("div");
+    d.style.cssText="display:flex;gap:12px;align-items:baseline;padding:10px 4px;border-bottom:1px solid var(--line-soft);cursor:pointer;flex-wrap:wrap";
+    const keys=c.positions.map(p=>`<span class="tag live">${keyLabelAt(p)}</span>`).join(" + ");
+    d.innerHTML=`<b style="font-family:var(--mono);font-size:13px">${c.name}</b>
+      <span style="font-size:13px">${keys}</span>
+      <span style="color:var(--muted)">→</span>
+      <code style="font-family:var(--mono);font-size:12.5px">${c.binding}</code>
+      <span style="font-size:11.5px;color:var(--muted)">${c.layers.length?("layer "+c.layers.join(",")):"全レイヤー"}${c.timeout?(" / "+c.timeout+"ms"):""}</span>`;
+    d.addEventListener("click",()=>openCombo(idx));
+    el.appendChild(d);
+  });
+  updateExBar();
+}
+
+// --- コンボ編集 ---
+function chipSelector(container, positions, selected){
+  container.innerHTML="";
+  DATA.geom.filter(g=>g.onS).forEach(g=>{
+    const ch=document.createElement("button");
+    ch.className="chip"+(selected.has(g.i)?" on":"");
+    ch.textContent=keyLabelAt(g.i);
+    ch.title="pos "+g.i;
+    ch.addEventListener("click",()=>{selected.has(g.i)?selected.delete(g.i):selected.add(g.i);ch.classList.toggle("on");});
+    container.appendChild(ch);
+  });
+}
+let cSelKeys=new Set(), cSelLayers=new Set();
+function openCombo(idx){
+  editCombo=idx;
+  const c= idx>=0? EX.combos[idx] : {name:"combo_"+(EX.combos.length+1),binding:"&kp ESC",positions:[],layers:[],timeout:null};
+  $("comboTitle").textContent = idx>=0? "コンボを編集":"コンボを追加";
+  $("cName").value=c.name; $("cBind").value=c.binding; $("cTimeout").value=c.timeout||"";
+  cSelKeys=new Set(c.positions); cSelLayers=new Set(c.layers);
+  chipSelector($("cKeys"), null, cSelKeys);
+  const cl=$("cLayers"); cl.innerHTML="";
+  LAYER_INFO.forEach((L,i)=>{
+    const ch=document.createElement("button");
+    ch.className="chip"+(cSelLayers.has(i)?" on":"");
+    ch.textContent=i+": "+L.jp;
+    ch.addEventListener("click",()=>{cSelLayers.has(i)?cSelLayers.delete(i):cSelLayers.add(i);ch.classList.toggle("on");});
+    cl.appendChild(ch);
+  });
+  $("comboDelete").style.display = idx>=0? "":"none";
+  $("comboOv").classList.add("show");
+}
+$("comboAdd").addEventListener("click",()=>openCombo(-1));
+$("comboClose").addEventListener("click",()=>$("comboOv").classList.remove("show"));
+$("comboCancel").addEventListener("click",()=>$("comboOv").classList.remove("show"));
+$("comboOv").addEventListener("click",e=>{if(e.target===$("comboOv"))$("comboOv").classList.remove("show");});
+$("comboDelete").addEventListener("click",()=>{
+  if(editCombo>=0 && confirm("このコンボを削除しますか？")){EX.combos.splice(editCombo,1);$("comboOv").classList.remove("show");renderCombos();}
+});
+$("comboApply").addEventListener("click",()=>{
+  const name=$("cName").value.trim();
+  if(!/^[a-z_][a-z0-9_]*$/.test(name)) return alert("名前は小文字英数字と_のみです");
+  if(cSelKeys.size<2) return alert("キーを2個以上選んでください");
+  const bind=$("cBind").value.trim();
+  if(!bind.startsWith("&")) return alert("バインディングは & から始めてください (例: &kp ESC)");
+  const c={name,binding:bind,positions:[...cSelKeys].sort((a,b)=>a-b),layers:[...cSelLayers].sort(),timeout:parseInt($("cTimeout").value)||null};
+  if(editCombo>=0) EX.combos[editCombo]=c; else EX.combos.push(c);
+  $("comboOv").classList.remove("show"); renderCombos();
+});
+
+// --- 設定フォーム ---
+let stExclSel=new Set();
+function renderSettings(){
+  const st=EX.settings;
+  $("stAml").checked=st.amlEnabled; $("stAmlTimeout").value=st.amlTimeout;
+  $("stInvX").checked=st.invertX; $("stInvY").checked=st.invertY;
+  $("stCpi").value=st.cpi||""; $("stSleep").value=st.sleepMin;
+  stExclSel=new Set(st.amlExcluded);
+  chipSelector($("stExcl"), null, stExclSel);
+  // chipSelectorはトグルでstExclSelを更新するので、変更をEXに同期するリスナーを張る
+  $("stExcl").addEventListener("click",()=>{st.amlExcluded=[...stExclSel].sort((a,b)=>a-b);updateExBar();});
+  updateExBar();
+}
+[["stAml","amlEnabled","checked"],["stInvX","invertX","checked"],["stInvY","invertY","checked"]].forEach(([id,k,prop])=>{
+  $(id).addEventListener("change",e=>{EX.settings[k]=e.target[prop];updateExBar();});
+});
+[["stAmlTimeout","amlTimeout"],["stSleep","sleepMin"]].forEach(([id,k])=>{
+  $(id).addEventListener("input",e=>{EX.settings[k]=parseInt(e.target.value)||0;updateExBar();});
+});
+$("stCpi").addEventListener("input",e=>{EX.settings.cpi=parseInt(e.target.value)||null;updateExBar();});
+
+// --- 保存 & ビルド ---
+async function pollBuild(){
+  const log=$("buildLog"); log.hidden=false;
+  while(true){
+    const st=await (await fetch("/build-status")).json();
+    log.textContent=st.log; log.scrollTop=log.scrollHeight;
+    if(!st.running) return st.ok;
+    await new Promise(r=>setTimeout(r,2000));
+  }
+}
+$("exSaveBuild").addEventListener("click",async()=>{
+  const sleepChanged = EX.settings.sleepMin!==EX_ORIG.settings.sleepMin;
+  $("exSaveBuild").disabled=true;
+  try{
+    const r=await fetch("/extras",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(EX)});
+    const j=await r.json(); if(j.error) throw new Error(j.error);
+    exDirtyEl.textContent="保存しました。ビルド中(1-2分)...";
+    await fetch("/build",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({artifact:"torabo_tsuki_lp_right_central"})});
+    const ok=await pollBuild();
+    if(ok){
+      EX_ORIG=deep(EX);
+      exDirtyEl.textContent="✓ 右手側に反映しました";
+      if(sleepChanged){ $("exBuildLeft").hidden=false; exDirtyEl.textContent+=" (スリープ設定は左手側も必要です→左手をUSB接続して右のボタンを)"; }
+    } else exDirtyEl.textContent="✕ ビルド失敗 (ログ参照)";
+  }catch(e){ exDirtyEl.textContent="✕ "+e.message; }
+  updateExBar();
+});
+$("exBuildLeft").addEventListener("click",async()=>{
+  $("exBuildLeft").disabled=true;
+  await fetch("/build",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({artifact:"torabo_tsuki_lp_left_peripheral"})});
+  const ok=await pollBuild();
+  exDirtyEl.textContent= ok? "✓ 左手側にも反映しました":"✕ 左手側ビルド失敗";
+  $("exBuildLeft").disabled=false; if(ok)$("exBuildLeft").hidden=true;
+});
+
+// --- extras取得 (キーマップ取得後に実行される想定でリトライ付き) ---
+(async()=>{
+  for(let i=0;i<50;i++){ if(DATA) break; await new Promise(r=>setTimeout(r,100)); }
+  try{
+    const j=await (await fetch("/extras")).json();
+    if(j.error) throw new Error(j.error);
+    EX=j; EX_ORIG=deep(j);
+    renderCombos(); renderSettings();
+  }catch(e){ exDirtyEl.textContent="✕ extras取得失敗: "+e.message; }
 })();
 </script>

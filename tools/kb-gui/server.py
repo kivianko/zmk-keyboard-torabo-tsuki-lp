@@ -1,24 +1,32 @@
 """キーマップGUIのローカルサーバ
 
-  GET  /         GUI (gui.html)
-  GET  /keymap   現在のkeymap (config/keymap.keymapをパース) + Sレイアウト座標
-  POST /apply    変更を実機へRPC反映し、config/keymap.keymap にも書き込む
-                 body: {"changes": [{"layer":0, "pos":33, "binding":"&kp K"}, ...]}
+  GET  /             GUI (gui.html)
+  GET  /keymap       現在のkeymap (config/keymap.keymapをパース) + Sレイアウト座標
+  POST /apply        キーマップ変更を実機へRPC反映 + keymap.keymapへ書き込み (ビルド不要)
+  GET  /extras       コンボ + 細かな設定 (ファーム側設定) の現在値
+  POST /extras       コンボ/設定をソースへ書き込み (反映にはビルドが必要)
+  POST /build        {"artifact": name} をビルドして書き込み (local.sh、バックグラウンド)
+  GET  /build-status 進行中ビルドのログと状態
+  POST /quit         サーバ終了
 """
-import json, os, re, sys
+import json, os, re, subprocess, sys, threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "zmkrpc"))
-from push_keymap import Pusher  # noqa: E402
+from push_keymap import Pusher, load_position_map_s  # noqa: E402
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 KEYMAP = os.path.join(REPO, "config/keymap.keymap")
 LAYOUTS = os.path.join(REPO, "boards/shields/torabo_tsuki_lp/torabo_tsuki_lp_layouts.dtsi")
+OVERLAYS = [os.path.join(REPO, f"boards/shields/torabo_tsuki_lp/torabo_tsuki_lp_{s}.overlay") for s in ("right", "left")]
+CONFS = [os.path.join(REPO, f"boards/shields/torabo_tsuki_lp/torabo_tsuki_lp_{s}.conf") for s in ("right", "left")]
+TRACKBALL_OVERLAY = os.path.join(REPO, "snippets/input-trackball/input-trackball.overlay")
 ROWS = [12, 12, 14, 14, 14]
 PORT = 8756
 
 BIND_RE = re.compile(r"&\S+(?:\s+[^&\s][^&]*?)?(?=\s*&|\s*$)")
 
+# ===== keymap =====
 
 def parse_layers():
     src = open(KEYMAP).read()
@@ -37,8 +45,7 @@ def geometry():
     for m in re.finditer(r"<&key_physical_attrs\s+\d+\s+\d+\s+(\d+)\s+(\d+)\s+(\(?-?\d+\)?)\s+(\d+)\s+(\d+)>", s_block):
         x, y, rot, rx, ry = m.groups()
         keys.append(dict(x=int(x) / 100, y=int(y) / 100, r=int(rot.strip("()")) / 100, rx=int(rx) / 100, ry=int(ry) / 100))
-    pm = re.search(r"position_map_s_1\s*\{.*?positions\s*=\s*<(.*?)>;", dtsi, re.S).group(1)
-    map_s = [int(t) for t in pm.split()]
+    map_s = load_position_map_s()
     geom, parked = [], 0
     for i in range(66):
         s = map_s[i]
@@ -55,7 +62,6 @@ def geometry():
 
 
 def write_keymap(layers, only_layers=None):
-    """layer_N の bindings ブロックだけ置換し、コンボ等はそのまま保つ"""
     src = open(KEYMAP).read()
     for li, lay in enumerate(layers):
         if only_layers is not None and li not in only_layers:
@@ -72,10 +78,121 @@ def write_keymap(layers, only_layers=None):
         )
     open(KEYMAP, "w").write(src)
 
+# ===== コンボ =====
+
+def parse_combos():
+    src = open(KEYMAP).read()
+    block = re.search(r"combos\s*\{(.*?)\n    \};", src, re.S)
+    combos = []
+    if block:
+        for m in re.finditer(r"(\w+)\s*\{([^{}]*?)\}\s*;", block.group(1)):
+            name, body = m.group(1), m.group(2)
+            if name == "compatible":
+                continue
+            def grab(prop):
+                mm = re.search(rf"{prop}\s*=\s*<(.*?)>;", body, re.S)
+                return mm.group(1).strip() if mm else None
+            c = {"name": name, "binding": re.sub(r"\s+", " ", (grab("bindings") or "").strip()),
+                 "positions": [int(x) for x in (grab("key-positions") or "").split()],
+                 "layers": [int(x) for x in grab("layers").split()] if grab("layers") else [],
+                 "timeout": int(grab("timeout-ms")) if grab("timeout-ms") else None}
+            combos.append(c)
+    return combos
+
+
+def write_combos(combos):
+    src = open(KEYMAP).read()
+    inner = ""
+    for c in combos:
+        inner += f"\n        {c['name']} {{\n"
+        inner += f"            bindings = <{c['binding']}>;\n"
+        inner += f"            key-positions = <{' '.join(str(p) for p in c['positions'])}>;\n"
+        if c.get("layers"):
+            inner += f"            layers = <{' '.join(str(l) for l in c['layers'])}>;\n"
+        if c.get("timeout"):
+            inner += f"            timeout-ms = <{int(c['timeout'])}>;\n"
+        inner += "        };\n"
+    new_block = 'combos {\n        compatible = "zmk,combos";\n' + inner + "    };"
+    src = re.sub(r"combos\s*\{.*?\n    \};", new_block, src, count=1, flags=re.S)
+    open(KEYMAP, "w").write(src)
+
+# ===== 細かな設定 =====
+
+def parse_settings():
+    r_ov = open(OVERLAYS[0]).read()
+    conf = open(CONFS[0]).read()
+    tb = open(TRACKBALL_OVERLAY).read()
+    aml = re.search(r"&zip_temp_layer\s+AUTO_MOUSE_LAYER\s+(\d+)", r_ov)
+    excl = re.search(r"excluded-positions\s*=\s*<([\d\s]*)>;", r_ov)
+    map_s = load_position_map_s()
+    s2l = {s: i for i, s in enumerate(map_s)}
+    excl_l = [s2l[int(x)] for x in excl.group(1).split() if int(x) in s2l] if excl else []
+    sleep = re.search(r"CONFIG_ZMK_IDLE_SLEEP_TIMEOUT=(\d+)", conf)
+    cpi = re.search(r"res-cpi\s*=\s*<(\d+)>;", tb)
+    return {
+        "amlEnabled": bool(aml),
+        "amlTimeout": int(aml.group(1)) if aml else 1000,
+        "amlExcluded": excl_l,  # L番号で返す(GUIはL番号で扱う)
+        "invertX": "INPUT_TRANSFORM_X_INVERT" in r_ov,
+        "invertY": "INPUT_TRANSFORM_Y_INVERT" in r_ov,
+        "sleepMin": int(sleep.group(1)) // 60000 if sleep else 150,
+        "cpi": int(cpi.group(1)) if cpi else None,
+    }
+
+
+def write_settings(s):
+    map_s = load_position_map_s()
+    # overlays (right/left 共通内容)
+    flags = [f for f, on in (("INPUT_TRANSFORM_X_INVERT", s["invertX"]), ("INPUT_TRANSFORM_Y_INVERT", s["invertY"])) if on]
+    procs = []
+    if flags:
+        procs.append(f"<&zip_xy_transform ({' | '.join(flags)})>")
+    if s["amlEnabled"]:
+        procs.append(f"<&zip_temp_layer AUTO_MOUSE_LAYER {int(s['amlTimeout'])}>")
+    listener = "&pointing_listener {\n    input-processors =\n        " + ",\n        ".join(procs) + ";\n};" if procs else "&pointing_listener {\n};"
+    excl_s = sorted(map_s[l] for l in s["amlExcluded"] if map_s[l] <= 43)
+    for path in OVERLAYS:
+        src = open(path).read()
+        src = re.sub(r"&pointing_listener\s*\{.*?\};", listener, src, count=1, flags=re.S)
+        src = re.sub(r"excluded-positions\s*=\s*<[\d\s]*>;", f"excluded-positions = <{' '.join(str(x) for x in excl_s)}>;", src, count=1)
+        open(path, "w").write(src)
+    # sleep (両conf)
+    for path in CONFS:
+        src = open(path).read()
+        src = re.sub(r"CONFIG_ZMK_IDLE_SLEEP_TIMEOUT=\d+", f"CONFIG_ZMK_IDLE_SLEEP_TIMEOUT={int(s['sleepMin']) * 60000}", src)
+        open(path, "w").write(src)
+    # CPI (トラックボールスニペット)
+    tb = open(TRACKBALL_OVERLAY).read()
+    tb = re.sub(r"\n\s*res-cpi\s*=\s*<\d+>;", "", tb)
+    if s.get("cpi"):
+        tb = tb.replace("spi-max-frequency = <2000000>;", f"spi-max-frequency = <2000000>;\n        res-cpi = <{int(s['cpi'])}>;")
+    open(TRACKBALL_OVERLAY, "w").write(tb)
+
+# ===== ビルド =====
+
+BUILD = {"running": False, "log": "", "ok": None, "artifact": None}
+
+
+def run_build(artifact):
+    BUILD.update(running=True, log=f"==> {artifact} のビルドを開始...\n", ok=None, artifact=artifact)
+    try:
+        p = subprocess.Popen([os.path.join(REPO, "local.sh"), artifact],
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=REPO)
+        for line in p.stdout:
+            BUILD["log"] += line
+        p.wait()
+        BUILD["ok"] = p.returncode == 0
+        BUILD["log"] += "\n==> " + ("完了 ✓" if BUILD["ok"] else f"失敗 (exit {p.returncode})") + "\n"
+    except Exception as e:
+        BUILD["ok"] = False
+        BUILD["log"] += f"\nエラー: {e}\n"
+    finally:
+        BUILD["running"] = False
+
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
-        print(f"  {self.command} {self.path} {args[1] if len(args) > 1 else ''}")
+        print(f"  {self.command} {self.path} {args[1] if len(args) > 1 else ''}", flush=True)
 
     def _json(self, obj, code=200):
         body = json.dumps(obj, ensure_ascii=False).encode()
@@ -85,59 +202,85 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def do_GET(self):
-        if self.path in ("/", "/index.html"):
-            body = open(os.path.join(os.path.dirname(__file__), "gui.html"), "rb").read()
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-        elif self.path == "/keymap":
-            try:
-                self._json({"layers": parse_layers(), "geom": geometry()})
-            except Exception as e:
-                self._json({"error": str(e)}, 500)
-        else:
-            self._json({"error": "not found"}, 404)
+    def _body(self):
+        n = int(self.headers.get("Content-Length", 0))
+        return json.loads(self.rfile.read(n)) if n else {}
 
-    def do_POST(self):
-        if self.path == "/quit":
-            self._json({"ok": True})
-            import threading
-            threading.Timer(0.3, lambda: os._exit(0)).start()
-            return
-        if self.path != "/apply":
-            return self._json({"error": "not found"}, 404)
+    def do_GET(self):
         try:
-            n = int(self.headers.get("Content-Length", 0))
-            changes = json.loads(self.rfile.read(n))["changes"]
-            if not changes:
-                return self._json({"error": "変更がありません"}, 400)
-            results, p = [], None
-            try:
-                p = Pusher()
-                for ch in changes:
-                    ok = p.set_binding(int(ch["layer"]), int(ch["pos"]), ch["binding"])
-                    results.append({"layer": ch["layer"], "pos": ch["pos"], "binding": ch["binding"], "ok": bool(ok)})
-                saved = p.save() if any(r["ok"] for r in results) else False
-            finally:
-                if p:
-                    p.c.close()
-            # 成功した変更を keymap.keymap にも反映 (ソース整合)
-            layers = parse_layers()
-            changed_layers = set()
-            for r in results:
-                if r["ok"]:
-                    layers[r["layer"]][r["pos"]] = r["binding"]
-                    changed_layers.add(r["layer"])
-            if changed_layers:
-                write_keymap(layers, changed_layers)
-            self._json({"results": results, "saved": saved, "space": p.space})
+            if self.path in ("/", "/index.html"):
+                body = open(os.path.join(os.path.dirname(__file__), "gui.html"), "rb").read()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            elif self.path == "/keymap":
+                self._json({"layers": parse_layers(), "geom": geometry()})
+            elif self.path == "/extras":
+                self._json({"combos": parse_combos(), "settings": parse_settings()})
+            elif self.path == "/build-status":
+                self._json(BUILD)
+            else:
+                self._json({"error": "not found"}, 404)
         except Exception as e:
             self._json({"error": str(e)}, 500)
 
+    def do_POST(self):
+        try:
+            if self.path == "/quit":
+                self._json({"ok": True})
+                threading.Timer(0.3, lambda: os._exit(0)).start()
+            elif self.path == "/apply":
+                self._apply()
+            elif self.path == "/extras":
+                data = self._body()
+                if "combos" in data:
+                    for c in data["combos"]:
+                        if not re.fullmatch(r"[a-z_][a-z0-9_]*", c["name"]):
+                            return self._json({"error": f"コンボ名が不正: {c['name']} (小文字英数字と_のみ)"}, 400)
+                        if len(c["positions"]) < 2:
+                            return self._json({"error": f"コンボ {c['name']}: キーは2個以上"}, 400)
+                    write_combos(data["combos"])
+                if "settings" in data:
+                    write_settings(data["settings"])
+                self._json({"ok": True})
+            elif self.path == "/build":
+                if BUILD["running"]:
+                    return self._json({"error": "ビルド実行中です"}, 409)
+                art = self._body().get("artifact", "torabo_tsuki_lp_right_central")
+                threading.Thread(target=run_build, args=(art,), daemon=True).start()
+                self._json({"ok": True})
+            else:
+                self._json({"error": "not found"}, 404)
+        except Exception as e:
+            self._json({"error": str(e)}, 500)
+
+    def _apply(self):
+        changes = self._body()["changes"]
+        if not changes:
+            return self._json({"error": "変更がありません"}, 400)
+        results, p = [], None
+        try:
+            p = Pusher()
+            for ch in changes:
+                ok = p.set_binding(int(ch["layer"]), int(ch["pos"]), ch["binding"])
+                results.append({"layer": ch["layer"], "pos": ch["pos"], "binding": ch["binding"], "ok": bool(ok)})
+            saved = p.save() if any(r["ok"] for r in results) else False
+        finally:
+            if p:
+                p.c.close()
+        layers = parse_layers()
+        changed = set()
+        for r in results:
+            if r["ok"]:
+                layers[r["layer"]][r["pos"]] = r["binding"]
+                changed.add(r["layer"])
+        if changed:
+            write_keymap(layers, changed)
+        self._json({"results": results, "saved": saved, "space": p.space})
+
 
 if __name__ == "__main__":
-    print(f"torabo-tsuki keymap GUI: http://localhost:{PORT}")
+    print(f"torabo-tsuki keymap GUI: http://localhost:{PORT}", flush=True)
     HTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
