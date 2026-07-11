@@ -38,8 +38,6 @@
   .key.trans .val{color:#b6bcc6;font-weight:500}
   .key.chg{border-color:var(--chg);box-shadow:0 0 0 1px var(--chg)}
   .key.chg::after{content:"";position:absolute;right:4px;bottom:4px;width:6px;height:6px;border-radius:50%;background:var(--chg)}
-  .parkline{position:absolute;left:0;right:0;border-top:1px dashed var(--line);font-size:10.5px;color:var(--muted);padding-top:5px}
-  .key.park{opacity:.45;width:48px;height:48px}
 
   /* footer bar */
   .bar{display:flex;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap}
@@ -294,17 +292,13 @@ const board=document.getElementById("board");
 function render(){
   if(!DATA) return;
   board.innerHTML="";
-  const parkY=6.8;
-  const maxX=Math.max(...DATA.geom.map(g=>g.x))+1, maxY=Math.max(...DATA.geom.map(g=>g.y))+1;
-  board.style.width=(maxX*U+10)+"px"; board.style.height=(maxY*U+34)+"px";
-  const div=document.createElement("div");
-  div.className="parkline"; div.style.top=(parkY*U-16)+"px";
-  div.textContent="▼ Sサイズに存在しないキー(編集しても実機には反映されません)";
-  board.appendChild(div);
-  DATA.geom.forEach(g=>{
+  const sKeys=DATA.geom.filter(g=>g.onS);
+  const maxX=Math.max(...sKeys.map(g=>g.x))+1, maxY=Math.max(...sKeys.map(g=>g.y))+1;
+  board.style.width=(maxX*U+10)+"px"; board.style.height=(maxY*U+24)+"px";
+  sKeys.forEach(g=>{
     const b=layers[curLayer][g.i], d=display(b);
     const el=document.createElement("button");
-    el.className="key"+(g.onS?"":" park")+(d.trans?" trans":"")+(layers[curLayer][g.i]!==ORIG[curLayer][g.i]?" chg":"");
+    el.className="key"+(d.trans?" trans":"")+(layers[curLayer][g.i]!==ORIG[curLayer][g.i]?" chg":"");
     el.style.left=(g.x*U)+"px"; el.style.top=(g.y*U+18)+"px";
     if(g.r){ el.style.transformOrigin=((g.rx-g.x)*U)+"px "+((g.ry-g.y)*U)+"px"; el.style.transform="rotate("+g.r+"deg)"; }
     el.innerHTML=(d.hdr?'<span class="hdr"></span>':"")+'<span class="val"></span>';
