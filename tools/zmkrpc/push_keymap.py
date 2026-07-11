@@ -17,8 +17,9 @@ from client import StudioClient  # noqa: E402
 import studio_pb2  # noqa: E402
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-ZMK_INC = os.path.expanduser("~/dev/zmk-ws/zmk/app/include")
-ZEPHYR_INC = os.path.expanduser("~/dev/zmk-ws/zephyr/include")
+TOOLCHAIN = os.environ.get("ZMK_TOOLCHAIN") or os.path.expanduser("~/dev/zmk-toolchain")
+ZMK_INC = os.path.join(TOOLCHAIN, "ws/zmk/app/include")
+ZEPHYR_INC = os.path.join(TOOLCHAIN, "ws/zephyr/include")
 
 # devicetree参照名 → ZMK挙動のdisplay_name (実機のlistAllBehaviorsと突き合わせる)
 BEH_NAMES = {

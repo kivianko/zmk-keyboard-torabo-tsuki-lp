@@ -6,14 +6,17 @@
 #   ./local.sh <artifact-name>        # build.yamlのartifact-name指定
 #   ./local.sh --build-only [name]    # ビルドのみ(書き込みしない)
 #
-# 前提(初回セットアップ済み):
-#   ~/dev/zmk-ws        westワークスペース (west update済み)
-#   ~/.zmk-venv         python venv (west, protobuf, grpcio-tools, setuptools<81)
-#   ~/zephyr-sdk-0.16.9 ARMツールチェーン
+# 前提(初回セットアップ済み): ~/dev/zmk-toolchain/ 配下に集約
+#   ws/                 westワークスペース (west update済み)
+#   venv/               python venv (west, protobuf, grpcio-tools, setuptools<81)
+#   zephyr-sdk-0.16.9/  ARMツールチェーン
 set -euo pipefail
 
-export ZMK_WS=~/dev/zmk-ws
-export ZMK_VENV=~/.zmk-venv
+export ZMK_TOOLCHAIN="${ZMK_TOOLCHAIN:-$HOME/dev/zmk-toolchain}"
+export ZMK_WS="$ZMK_TOOLCHAIN/ws"
+export ZMK_VENV="$ZMK_TOOLCHAIN/venv"
+export ZEPHYR_BASE="$ZMK_WS/zephyr"
+export ZEPHYR_SDK_INSTALL_DIR="$ZMK_TOOLCHAIN/zephyr-sdk-0.16.9"
 export ZMK_REPO="$(cd "$(dirname "$0")" && pwd)"
 
 BUILD_ONLY=0
@@ -41,6 +44,7 @@ if ! nix shell nixpkgs#cmake nixpkgs#ninja nixpkgs#dtc -c sh -c '
   export PATH="$ZMK_VENV/bin:$PATH"
   if [ -n "$SNIPPET" ]; then set -- -S "$SNIPPET"; else set --; fi
   exec west build -s zmk/app -d "build/$ART" -b bmp_boost "$@" -- \
+    -DZephyr_DIR="$ZEPHYR_BASE/share/zephyr-package/cmake" \
     -DZMK_CONFIG="$ZMK_REPO/config" -DSHIELD="$SHIELD" -DZMK_EXTRA_MODULES="$ZMK_REPO"
 ' > "$LOG" 2>&1; then
   echo "==> ビルド失敗。エラー抜粋:"; grep -B2 -A8 -iE "error|FAILED" "$LOG" | head -40
