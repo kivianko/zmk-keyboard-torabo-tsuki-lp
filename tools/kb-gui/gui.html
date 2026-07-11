@@ -1,0 +1,464 @@
+<title>torabo-tsuki キーマップエディタ (ローカル)</title>
+<style>
+  :root{
+    --ground:#eceef1; --panel:#fff; --ink:#14171c; --muted:#6b7280;
+    --line:#d9dce2; --line-soft:#e7e9ee;
+    --acc:#0d7d84; --acc-tint:#e2f1f1;      /* teal: 操作 */
+    --chg:#b0592a; --chg-tint:#f7ece3;      /* copper: 変更 */
+    --key-bg:#fff; --key-line:#d4d7dd;
+    --mono:ui-monospace,"SF Mono",Menlo,monospace;
+    --sans:-apple-system,"Segoe UI",system-ui,"Hiragino Sans","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:900px;margin:0 auto;padding:28px 20px 90px}
+  header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 16px;margin-bottom:6px}
+  h1{font-size:21px;font-weight:700;letter-spacing:-.01em;margin:0}
+  .sub{font-size:12.5px;color:var(--muted)}
+  .hint{font-size:12.5px;color:var(--muted);margin:2px 0 16px}
+  .hint b{color:var(--acc);font-weight:600}
+
+  /* layer tabs */
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px}
+  .tab{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:7px 13px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--ink)}
+  .tab small{display:block;font-size:10.5px;color:var(--muted)}
+  .tab.on{background:var(--acc);border-color:var(--acc);color:#fff}
+  .tab.on small{color:#cfe8e9}
+  .tab:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+
+  /* board */
+  .boardwrap{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;overflow-x:auto}
+  .board{position:relative;margin:0 auto}
+  .key{position:absolute;width:52px;height:52px;border:1px solid var(--key-line);border-radius:7px;background:var(--key-bg);cursor:pointer;font-family:inherit;padding:0;display:flex;align-items:center;justify-content:center;transition:box-shadow .1s,border-color .1s;color:var(--ink)}
+  @media (prefers-reduced-motion:reduce){.key{transition:none}}
+  .key:hover{border-color:#9aa1ac;box-shadow:0 3px 10px rgba(0,0,0,.13);z-index:3}
+  .key:focus-visible{outline:2px solid var(--acc);outline-offset:1px;z-index:3}
+  .key .hdr{position:absolute;top:3px;left:2px;right:2px;font-size:7.5px;line-height:1;text-transform:uppercase;letter-spacing:.03em;font-weight:700;color:rgba(20,23,28,.42);text-align:center;white-space:nowrap;overflow:hidden;pointer-events:none}
+  .key .val{font-size:12px;font-weight:600;line-height:1.1;text-align:center;padding:0 2px;word-break:break-all}
+  .key.trans .val{color:#b6bcc6;font-weight:500}
+  .key.chg{border-color:var(--chg);box-shadow:0 0 0 1px var(--chg)}
+  .key.chg::after{content:"";position:absolute;right:4px;bottom:4px;width:6px;height:6px;border-radius:50%;background:var(--chg)}
+  .parkline{position:absolute;left:0;right:0;border-top:1px dashed var(--line);font-size:10.5px;color:var(--muted);padding-top:5px}
+  .key.park{opacity:.45;width:48px;height:48px}
+
+  /* footer bar */
+  .bar{display:flex;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap}
+  .btn{border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:9px 16px;font-size:13.5px;cursor:pointer;font-family:inherit;color:var(--ink)}
+  .btn.primary{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+  .btn:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+  .btn:disabled{opacity:.45;cursor:default}
+  .count{font-size:13px;color:var(--muted)}
+  .count b{color:var(--chg);font-size:15px}
+
+  /* modal */
+  .ov{position:fixed;inset:0;background:rgba(20,23,28,.45);display:none;align-items:flex-start;justify-content:center;padding:6vh 16px;z-index:20}
+  .ov.show{display:flex}
+  .modal{background:var(--panel);border-radius:14px;max-width:560px;width:100%;max-height:84vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.25)}
+  .mhead{display:flex;align-items:center;gap:10px;padding:16px 20px 10px}
+  .mhead h2{font-size:15px;margin:0;font-weight:650}
+  .mhead .pos{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+  .mhead .x{margin-left:auto;border:none;background:none;font-size:19px;cursor:pointer;color:var(--muted);padding:4px 8px}
+  .mbody{padding:0 20px 18px;overflow-y:auto}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 12px}
+  .chip{border:1px solid var(--line);background:#f4f5f7;border-radius:16px;padding:5px 12px;font-size:12.5px;cursor:pointer;font-family:var(--mono)}
+  .chip.on{background:var(--acc);border-color:var(--acc);color:#fff}
+  .fld{margin:10px 0}
+  .fld label{display:block;font-size:11.5px;color:var(--muted);font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:5px}
+  .fld input[type=text],.fld select{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:14px;font-family:inherit;background:#fff;color:var(--ink)}
+  .fld input:focus,.fld select:focus{outline:2px solid var(--acc);outline-offset:0;border-color:var(--acc)}
+  .list{border:1px solid var(--line-soft);border-radius:9px;margin-top:6px;max-height:230px;overflow-y:auto}
+  .item{display:flex;align-items:baseline;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line-soft);font-size:13.5px}
+  .item:last-child{border-bottom:none}
+  .item .c{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .item.sel{background:var(--acc-tint)}
+  .item b{font-weight:600;min-width:52px}
+  .preview{font-family:var(--mono);font-size:13px;background:#15181e;color:#e7e9ee;border-radius:8px;padding:10px 14px;margin:12px 0 4px;word-break:break-all}
+  .mfoot{display:flex;gap:10px;justify-content:flex-end;padding:12px 20px 18px;border-top:1px solid var(--line-soft)}
+
+  /* export modal */
+  textarea{width:100%;font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:8px;padding:10px;background:#fbfcfd;color:var(--ink);resize:vertical}
+  .copyrow{display:flex;align-items:center;gap:10px;margin:6px 0 14px}
+  .ok{color:var(--acc);font-size:12.5px;font-weight:600;opacity:0;transition:opacity .2s}
+  .ok.show{opacity:1}
+  .exp-note{font-size:12.5px;color:var(--muted);margin:2px 0 8px}
+  .exp-note b{color:var(--ink)}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>torabo-tsuki キーマップエディタ</h1>
+    <span class="sub">Sレイアウト表示 / 「実機に反映」で数秒反映(ビルド不要) / keymap.keymapにも自動反映</span>
+  </header>
+  <p class="hint">キーをクリックして割り当てを変更 → 右下の<b>「実機に反映」</b>。キーボードをUSB接続し、ZMK Studio等の接続は切っておいてください。</p>
+
+  <div class="tabs" id="tabs"></div>
+  <div class="boardwrap"><div class="board" id="board"></div></div>
+
+  <div class="bar">
+    <span class="count" id="count"></span>
+    <span style="flex:1"></span>
+    <span class="count" id="applyStatus"></span>
+    <button class="btn" id="resetBtn">すべて元に戻す</button>
+    <button class="btn" id="exportBtn">書き出し</button>
+    <button class="btn primary" id="applyBtn">実機に反映</button>
+  </div>
+</div>
+
+<!-- key picker modal -->
+<div class="ov" id="pickOv">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="mhead"><h2 id="pickTitle">キーの割り当て</h2><span class="pos" id="pickPos"></span><button class="x" id="pickClose" aria-label="閉じる">✕</button></div>
+    <div class="mbody">
+      <div class="chips" id="behChips"></div>
+      <div id="paramArea"></div>
+      <div class="preview" id="preview"></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn" id="pickCancel">キャンセル</button>
+      <button class="btn primary" id="pickApply">適用</button>
+    </div>
+  </div>
+</div>
+
+<!-- export modal -->
+<div class="ov" id="expOv">
+  <div class="modal" role="dialog" aria-modal="true" style="max-width:640px">
+    <div class="mhead"><h2>変更を書き出す</h2><button class="x" id="expClose" aria-label="閉じる">✕</button></div>
+    <div class="mbody">
+      <p class="exp-note"><b>① 変更サマリ</b> — これをClaudeにそのまま貼るのが最短です</p>
+      <textarea id="expSummary" rows="7" readonly></textarea>
+      <div class="copyrow"><button class="btn" data-copy="expSummary">サマリをコピー</button><span class="ok">コピーしました ✓</span></div>
+      <p class="exp-note"><b>② keymap.keymap 全文</b> — 検証用/直接置き換え用</p>
+      <textarea id="expFull" rows="9" readonly></textarea>
+      <div class="copyrow"><button class="btn" data-copy="expFull">全文をコピー</button><span class="ok">コピーしました ✓</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+// ===== データはサーバから取得 =====
+let DATA = null;
+
+const LAYER_INFO = [
+  {name:"layer_0", jp:"ベース"},
+  {name:"layer_1", jp:"マウス(自動)"},
+  {name:"layer_2", jp:"記号(左親指)"},
+  {name:"layer_3", jp:"ナビ/Fn(右親指)"},
+];
+const ROWS = [12,12,14,14,14]; // keymapファイルの行構成(L)
+
+// ===== キーコードカタログ =====
+const KC = [];
+const add=(code,label,terms,cat)=>KC.push({code,label,terms:(terms||"")+" "+code+" "+label,cat});
+"ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").forEach(c=>add(c,c,"letter 文字","文字"));
+for(let n=0;n<=9;n++) add("N"+n,""+n,"number 数字","数字");
+for(let n=1;n<=12;n++) add("F"+n,"F"+n,"function","Fn");
+[["ESC","Esc","escape"],["TAB","Tab⇥",""],["CAPS","Caps","capslock"],["SPACE","Space","スペース 空白"],["RET","Enter⏎","return enter 改行"],["BSPC","⌫ BS","backspace 削除"],["DEL","Del","delete"],["INS","Ins","insert"],["HOME","Home",""],["END","End",""],["PG_UP","PgUp","pageup"],["PAGE_DOWN","PgDn","pagedown"],["LEFT","←","left"],["RIGHT","→","right"],["UP_ARROW","↑","up"],["DOWN","↓","down"],["PSCRN","PrtSc","printscreen"]].forEach(([c,l,t])=>add(c,l,t+" 移動","移動"));
+[["SEMI",";",""],["COLON",":",""],["SQT","'","quote"],["DQT","\"","doublequote"],["COMMA",",",""],["DOT",".","period"],["FSLH","/","slash"],["QMARK","?","question"],["BSLH","\\","backslash"],["PIPE","|",""],["MINUS","-",""],["UNDER","_","underscore"],["EQUAL","=",""],["PLUS","+",""],["LBKT","[","bracket"],["RBKT","]","bracket"],["LBRC","{","brace"],["RBRC","}","brace"],["LPAR","(","paren"],["RPAR",")","paren"],["GRAVE","`",""],["TILDE","~",""],["EXCL","!","exclamation"],["AT","@",""],["HASH","#",""],["DLLR","$","dollar"],["PRCNT","%","percent"],["CARET","^",""],["AMPS","&","ampersand"],["STAR","*","asterisk"]].forEach(([c,l,t])=>add(c,l,t+" 記号","記号"));
+[["LSHFT","⇧L","shift"],["RSHFT","⇧R","shift"],["LCTRL","CtrlL","control"],["RCTRL","CtrlR","control"],["LGUI","⌘L","gui cmd win"],["RGUI","⌘R","gui cmd win"],["LALT","⌥L","alt option"],["RALT","⌥R","alt option"]].forEach(([c,l,t])=>add(c,l,t+" 修飾","修飾"));
+[["LANGUAGE_1","かな","lang1 kana ime"],["LANGUAGE_2","英数","lang2 eisu ime"],["K_MUTE","Mute","ミュート"],["C_VOL_UP","Vol+","volume 音量"],["C_VOL_DN","Vol-","volume 音量"],["C_PP","⏯","play pause 再生"],["C_NEXT","⏭","next"],["C_PREV","⏮","prev"],["C_BRI_UP","☀+","brightness 明るさ"],["C_BRI_DN","☀-","brightness 明るさ"]].forEach(([c,l,t])=>add(c,l,t,"その他"));
+
+const KC_LABEL = {}; KC.forEach(k=>KC_LABEL[k.code]=k.label);
+Object.assign(KC_LABEL, {ESCAPE:"Esc",BACKSPACE:"⌫ BS",ENTER:"Enter⏎",RETURN:"Enter⏎",DELETE:"Del",PG_DN:"PgDn",PAGE_UP:"PgUp",UP:"↑",SINGLE_QUOTE:"'",DOUBLE_QUOTES:"\"",BACKSLASH:"\\",LEFT_BRACKET:"[",RIGHT_BRACKET:"]",LEFT_BRACE:"{",RIGHT_BRACE:"}",LEFT_SHIFT:"⇧L",RIGHT_SHIFT:"⇧R",LEFT_CONTROL:"CtrlL",RIGHT_CONTROL:"CtrlR",LEFT_GUI:"⌘L",RIGHT_GUI:"⌘R",LEFT_ALT:"⌥L",RIGHT_ALT:"⌥R",NUMBER_1:"1",NUMBER_2:"2",NUMBER_3:"3",NUMBER_4:"4",NUMBER_5:"5",NUMBER_6:"6",NUMBER_7:"7",NUMBER_8:"8",NUMBER_9:"9",NUMBER_0:"0"});
+const SHIFTED={N1:"!",NUMBER_1:"!",N2:"@",NUMBER_2:"@",N3:"#",N4:"$",N5:"%",N6:"^",N7:"&",N8:"*",N9:"(",N0:")",MINUS:"_",EQUAL:"+",SEMI:":",SQT:"\"",COMMA:"<",DOT:">",FSLH:"?",GRAVE:"~",LBKT:"{",RBKT:"}",BSLH:"|"};
+const MODS=[["LSHFT","⇧L"],["RSHFT","⇧R"],["LCTRL","CtrlL"],["RCTRL","CtrlR"],["LGUI","⌘L"],["RGUI","⌘R"],["LALT","⌥L"],["RALT","⌥R"],["LEFT_SHIFT","⇧L"],["RIGHT_SHIFT","⇧R"]];
+const BEHS=[
+ {b:"&kp",jp:"キー入力",params:["key"]},
+ {b:"&mt",jp:"モッドタップ",params:["mod","key"]},
+ {b:"&lt",jp:"レイヤータップ",params:["layer","key"]},
+ {b:"&mo",jp:"レイヤー(押下中)",params:["layer"]},
+ {b:"&tog",jp:"レイヤー(トグル)",params:["layer"]},
+ {b:"&sl",jp:"スティッキーレイヤー",params:["layer"]},
+ {b:"&mkp",jp:"マウスボタン",params:["choice"],choices:["LCLK","RCLK","MCLK","MB4","MB5"]},
+ {b:"&msc",jp:"スクロール",params:["choice"],choices:["SCRL_UP","SCRL_DOWN","SCRL_LEFT","SCRL_RIGHT"]},
+ {b:"&bt",jp:"Bluetooth",params:["choice"],choices:["BT_CLR","BT_NXT","BT_PRV","BT_SEL 0","BT_SEL 1","BT_SEL 2","BT_SEL 3","BT_SEL 4"]},
+ {b:"&out",jp:"出力切替",params:["choice"],choices:["OUT_USB","OUT_BLE","OUT_TOG"]},
+ {b:"&trans",jp:"透過",params:[]},
+ {b:"&none",jp:"無効",params:[]},
+ {b:"&bootloader",jp:"ブートローダ",params:[]},
+ {b:"&sys_reset",jp:"リセット",params:[]},
+ {b:"raw",jp:"直接入力",params:["raw"]},
+];
+
+// ===== 状態 =====
+const ORIG = [];
+let layers=[[],[],[],[]], curLayer=0, editIdx=-1, pick={};
+const save=()=>localStorage.setItem("tt-keymap",JSON.stringify(layers));
+
+// ===== 表示ラベル =====
+function keyLabel(code){
+  const m=code.match(/^LS\((.+)\)$/);
+  if(m) return SHIFTED[m[1]] || "⇧"+(KC_LABEL[m[1]]||m[1]);
+  return KC_LABEL[code]||code;
+}
+function modShort(m){const f=MODS.find(x=>x[0]===m);return f?f[1]:m;}
+function display(b){ // {hdr, val, trans}
+  const t=b.trim().split(/\s+/), beh=t[0];
+  if(beh==="&kp") return {hdr:"",val:keyLabel(t[1]||"")};
+  if(beh==="&trans") return {hdr:"",val:"▽",trans:true};
+  if(beh==="&none") return {hdr:"",val:"✕",trans:true};
+  if(beh==="&mo") return {hdr:"MO",val:"L"+t[1]};
+  if(beh==="&tog") return {hdr:"TOG",val:"L"+t[1]};
+  if(beh==="&sl") return {hdr:"SL",val:"L"+t[1]};
+  if(beh==="&lt") return {hdr:"LT"+t[1],val:keyLabel(t[2]||"")};
+  if(beh==="&mt") return {hdr:"MT "+modShort(t[1]),val:keyLabel(t[2]||"")};
+  if(beh==="&mkp") return {hdr:"MOUSE",val:{LCLK:"左CLK",RCLK:"右CLK",MCLK:"中CLK",MB4:"MB4",MB5:"MB5"}[t[1]]||t[1]};
+  if(beh==="&msc") return {hdr:"SCRL",val:{SCRL_UP:"↑",SCRL_DOWN:"↓",SCRL_LEFT:"←",SCRL_RIGHT:"→"}[t[1]]||t[1]};
+  if(beh==="&bt") return {hdr:"BT",val:(t[1]||"").replace("BT_","")+(t[2]?" "+t[2]:"")};
+  if(beh==="&out") return {hdr:"OUT",val:(t[1]||"").replace("OUT_","")};
+  if(beh==="&bootloader") return {hdr:"",val:"BOOT"};
+  if(beh==="&sys_reset") return {hdr:"",val:"RST"};
+  return {hdr:beh.replace("&",""),val:t.slice(1).join(" ")||"—"};
+}
+
+// ===== 盤面描画 =====
+const U=56, KEY=52;
+const board=document.getElementById("board");
+function render(){
+  if(!DATA) return;
+  board.innerHTML="";
+  const parkY=6.8;
+  const maxX=Math.max(...DATA.geom.map(g=>g.x))+1, maxY=Math.max(...DATA.geom.map(g=>g.y))+1;
+  board.style.width=(maxX*U+10)+"px"; board.style.height=(maxY*U+34)+"px";
+  const div=document.createElement("div");
+  div.className="parkline"; div.style.top=(parkY*U-16)+"px";
+  div.textContent="▼ Sサイズに存在しないキー(編集しても実機には反映されません)";
+  board.appendChild(div);
+  DATA.geom.forEach(g=>{
+    const b=layers[curLayer][g.i], d=display(b);
+    const el=document.createElement("button");
+    el.className="key"+(g.onS?"":" park")+(d.trans?" trans":"")+(layers[curLayer][g.i]!==ORIG[curLayer][g.i]?" chg":"");
+    el.style.left=(g.x*U)+"px"; el.style.top=(g.y*U+18)+"px";
+    if(g.r){ el.style.transformOrigin=((g.rx-g.x)*U)+"px "+((g.ry-g.y)*U)+"px"; el.style.transform="rotate("+g.r+"deg)"; }
+    el.innerHTML=(d.hdr?'<span class="hdr"></span>':"")+'<span class="val"></span>';
+    if(d.hdr) el.querySelector(".hdr").textContent=d.hdr;
+    el.querySelector(".val").textContent=d.val;
+    el.title=b+" (pos "+g.i+")";
+    el.addEventListener("click",()=>openPick(g.i));
+    board.appendChild(el);
+  });
+  const n=countChanges();
+  document.getElementById("count").innerHTML=n?("変更 <b>"+n+"</b> 件"):"変更なし";
+  document.getElementById("exportBtn").disabled=!n;
+}
+function countChanges(){let n=0;for(let l=0;l<4;l++)for(let i=0;i<66;i++)if(layers[l][i]!==ORIG[l][i])n++;return n;}
+
+// ===== レイヤータブ =====
+const tabs=document.getElementById("tabs");
+LAYER_INFO.forEach((L,i)=>{
+  const t=document.createElement("button");
+  t.className="tab"; t.innerHTML="<span></span><small></small>";
+  t.querySelector("span").textContent=L.name; t.querySelector("small").textContent=L.jp;
+  t.addEventListener("click",()=>{curLayer=i;[...tabs.children].forEach((c,j)=>c.classList.toggle("on",j===i));render();});
+  tabs.appendChild(t);
+});
+tabs.children[0].classList.add("on");
+
+// ===== ピッカー =====
+const pickOv=document.getElementById("pickOv"), paramArea=document.getElementById("paramArea"), preview=document.getElementById("preview");
+function parseBind(s){const t=s.trim().split(/\s+/);return {beh:t[0],p:t.slice(1)};}
+function serialize(){
+  if(pick.beh==="raw") return pick.raw||"&trans";
+  const def=BEHS.find(x=>x.b===pick.beh);
+  let out=pick.beh;
+  def.params.forEach(p=>{
+    if(p==="key") out+=" "+(pick.key||"A");
+    if(p==="mod") out+=" "+(pick.mod||"LSHFT");
+    if(p==="layer") out+=" "+(pick.layer??1);
+    if(p==="choice") out+=" "+(pick.choice||def.choices[0]);
+  });
+  return out;
+}
+function openPick(i){
+  editIdx=i;
+  const cur=parseBind(layers[curLayer][i]);
+  const def=BEHS.find(x=>x.b===cur.beh);
+  pick={beh:def?cur.beh:"raw", raw:layers[curLayer][i]};
+  if(def){
+    def.params.forEach((p,k)=>{
+      if(p==="key") pick.key=cur.p[def.params.indexOf("mod")>=0||def.params.indexOf("layer")>=0?1:0]||"A";
+      if(p==="mod") pick.mod=cur.p[0]||"LSHFT";
+      if(p==="layer") pick.layer=parseInt(cur.p[0]||"1");
+      if(p==="choice") pick.choice=cur.p.join(" ")||def.choices[0];
+    });
+  }
+  document.getElementById("pickPos").textContent="pos "+i+" / "+LAYER_INFO[curLayer].name;
+  renderChips(); renderParams();
+  pickOv.classList.add("show");
+}
+function renderChips(){
+  const c=document.getElementById("behChips"); c.innerHTML="";
+  BEHS.forEach(bd=>{
+    const ch=document.createElement("button");
+    ch.className="chip"+(pick.beh===bd.b?" on":"");
+    ch.textContent=bd.b==="raw"?"raw":bd.b; ch.title=bd.jp;
+    ch.addEventListener("click",()=>{pick.beh=bd.b; if(bd.choices)pick.choice=bd.choices[0]; renderChips(); renderParams();});
+    c.appendChild(ch);
+  });
+}
+function fld(labelText,inner){const d=document.createElement("div");d.className="fld";const l=document.createElement("label");l.textContent=labelText;d.appendChild(l);d.appendChild(inner);return d;}
+function keySearch(onSel,initial){
+  const wrap=document.createElement("div");
+  const inp=document.createElement("input"); inp.type="text"; inp.placeholder="キーを検索 (例: a, enter, 記号, !)"; inp.value="";
+  const list=document.createElement("div"); list.className="list";
+  let items=[], sel=0;
+  const run=q=>{
+    q=q.toLowerCase();
+    items=KC.filter(k=>!q||k.terms.toLowerCase().includes(q)||k.label.toLowerCase()===q).slice(0,40);
+    sel=0; list.innerHTML="";
+    items.forEach((k,idx)=>{
+      const it=document.createElement("div"); it.className="item"+(idx===sel?" sel":"");
+      it.innerHTML="<b></b><span class='c'></span><span class='c'>"+k.cat+"</span>";
+      it.querySelector("b").textContent=k.label; it.querySelector(".c").textContent=k.code;
+      it.addEventListener("click",()=>{onSel(k.code);});
+      list.appendChild(it);
+    });
+  };
+  inp.addEventListener("input",()=>run(inp.value));
+  inp.addEventListener("keydown",e=>{
+    if(e.key==="ArrowDown"){sel=Math.min(sel+1,items.length-1);e.preventDefault();}
+    else if(e.key==="ArrowUp"){sel=Math.max(sel-1,0);e.preventDefault();}
+    else if(e.key==="Enter"){if(items[sel])onSel(items[sel].code);e.preventDefault();return;}
+    else return;
+    [...list.children].forEach((c,j)=>c.classList.toggle("sel",j===sel));
+    list.children[sel]&&list.children[sel].scrollIntoView({block:"nearest"});
+  });
+  run(""); wrap.appendChild(inp); wrap.appendChild(list);
+  setTimeout(()=>inp.focus(),50);
+  return wrap;
+}
+function renderParams(){
+  paramArea.innerHTML="";
+  const def=BEHS.find(x=>x.b===pick.beh);
+  if(pick.beh==="raw"){
+    const inp=document.createElement("input"); inp.type="text"; inp.value=pick.raw||"";
+    inp.addEventListener("input",()=>{pick.raw=inp.value; upd();});
+    paramArea.appendChild(fld("バインディング文字列 (上級者向け)",inp));
+  } else {
+    def.params.forEach(p=>{
+      if(p==="layer"){
+        const sel=document.createElement("select");
+        LAYER_INFO.forEach((L,i)=>{const o=document.createElement("option");o.value=i;o.textContent=i+": "+L.name+" ("+L.jp+")";sel.appendChild(o);});
+        sel.value=pick.layer??1;
+        sel.addEventListener("change",()=>{pick.layer=parseInt(sel.value);upd();});
+        paramArea.appendChild(fld("レイヤー",sel));
+      }
+      if(p==="mod"){
+        const sel=document.createElement("select");
+        [...new Map(MODS.map(m=>[m[0],m])).values()].slice(0,8).forEach(([c,l])=>{const o=document.createElement("option");o.value=c;o.textContent=l+"  ("+c+")";sel.appendChild(o);});
+        sel.value=pick.mod||"LSHFT";
+        sel.addEventListener("change",()=>{pick.mod=sel.value;upd();});
+        paramArea.appendChild(fld("修飾キー(ホールド時)",sel));
+      }
+      if(p==="choice"){
+        const sel=document.createElement("select");
+        def.choices.forEach(c=>{const o=document.createElement("option");o.value=c;o.textContent=c;sel.appendChild(o);});
+        sel.value=pick.choice||def.choices[0];
+        sel.addEventListener("change",()=>{pick.choice=sel.value;upd();});
+        paramArea.appendChild(fld("値",sel));
+      }
+      if(p==="key"){
+        paramArea.appendChild(fld("キー"+(pick.beh!=="&kp"?"(タップ時)":""),keySearch(code=>{pick.key=code;upd();})));
+      }
+    });
+  }
+  upd();
+}
+function upd(){preview.textContent=serialize();}
+document.getElementById("pickApply").addEventListener("click",()=>{
+  layers[curLayer][editIdx]=serialize(); save(); pickOv.classList.remove("show"); render();
+});
+document.getElementById("pickCancel").addEventListener("click",()=>pickOv.classList.remove("show"));
+document.getElementById("pickClose").addEventListener("click",()=>pickOv.classList.remove("show"));
+pickOv.addEventListener("click",e=>{if(e.target===pickOv)pickOv.classList.remove("show");});
+
+// ===== エクスポート =====
+const expOv=document.getElementById("expOv");
+document.getElementById("exportBtn").addEventListener("click",()=>{
+  let sum="以下のキーマップ変更を反映して書き込んでください:\n";
+  for(let l=0;l<4;l++)for(let i=0;i<66;i++)
+    if(layers[l][i]!==ORIG[l][i]) sum+=`layer_${l} pos${i}: ${ORIG[l][i]} → ${layers[l][i]}\n`;
+  document.getElementById("expSummary").value=sum;
+  document.getElementById("expFull").value=genKeymap();
+  expOv.classList.add("show");
+});
+document.getElementById("expClose").addEventListener("click",()=>expOv.classList.remove("show"));
+expOv.addEventListener("click",e=>{if(e.target===expOv)expOv.classList.remove("show");});
+document.querySelectorAll("[data-copy]").forEach(b=>b.addEventListener("click",async()=>{
+  await navigator.clipboard.writeText(document.getElementById(b.dataset.copy).value);
+  const ok=b.parentElement.querySelector(".ok"); ok.classList.add("show"); setTimeout(()=>ok.classList.remove("show"),1600);
+}));
+document.getElementById("resetBtn").addEventListener("click",()=>{
+  if(!confirm("すべての編集を破棄して元に戻しますか？"))return;
+  layers=ORIG.map(l=>l.slice()); save(); render();
+});
+
+const HEADER=`#include <behaviors.dtsi>
+#include <dt-bindings/zmk/bt.h>
+#include <dt-bindings/zmk/keys.h>
+#include <dt-bindings/zmk/outputs.h>
+#include <dt-bindings/zmk/pointing.h>
+
+/ {
+    combos {
+        compatible = "zmk,combos";
+
+        bt_clear {
+            bindings = <&bt BT_CLR>;
+            key-positions = <28 29>;
+            layers = <2>;
+        };
+    };
+
+    keymap {
+        compatible = "zmk,keymap";
+`;
+function genKeymap(){
+  let out=HEADER;
+  layers.forEach((lay,li)=>{
+    out+=`\n        layer_${li} {\n            bindings = <\n`;
+    let p=0;
+    ROWS.forEach(n=>{ out+="  "+lay.slice(p,p+n).join("  ")+"\n"; p+=n; });
+    out+="            >;\n        };\n";
+  });
+  out+="    };\n};\n";
+  return out;
+}
+
+// ===== 実機反映 =====
+const applyBtn=document.getElementById("applyBtn"), applyStatus=document.getElementById("applyStatus");
+function setStatus(t,err){applyStatus.textContent=t;applyStatus.style.color=err?"#b04a2a":"var(--acc)";}
+applyBtn.addEventListener("click",async()=>{
+  const changes=[];
+  for(let l=0;l<4;l++)for(let i=0;i<66;i++)
+    if(layers[l][i]!==ORIG[l][i]) changes.push({layer:l,pos:i,binding:layers[l][i]});
+  if(!changes.length)return;
+  applyBtn.disabled=true; setStatus("反映中...");
+  try{
+    const r=await fetch("/apply",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({changes})});
+    const j=await r.json();
+    if(j.error) throw new Error(j.error);
+    const okN=j.results.filter(x=>x.ok).length;
+    j.results.forEach(x=>{ if(x.ok) ORIG[x.layer][x.pos]=x.binding; });
+    save(); render();
+    if(okN===j.results.length) setStatus(`✓ ${okN}件反映しました (flash保存${j.saved?"済":"失敗"})`);
+    else setStatus(`⚠ ${okN}/${j.results.length}件のみ反映`,true);
+  }catch(e){ setStatus("✕ "+e.message,true); }
+  applyBtn.disabled=false;
+});
+
+// ===== 起動: サーバから現在のキーマップを取得 =====
+(async()=>{
+  try{
+    const r=await fetch("/keymap"); const j=await r.json();
+    if(j.error) throw new Error(j.error);
+    DATA=j;
+    ORIG.length=0; j.layers.forEach(l=>ORIG.push(l.slice()));
+    try{ const st=JSON.parse(localStorage.getItem("tt-keymap")||"null");
+      layers=(st&&st.length===4&&st.every(l=>l.length===66))?st:ORIG.map(l=>l.slice());
+    }catch(e){ layers=ORIG.map(l=>l.slice()); }
+    render();
+  }catch(e){ setStatus("✕ サーバに接続できません: "+e.message,true); }
+})();
+</script>
