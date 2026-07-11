@@ -74,6 +74,8 @@ def resolve_params(tokens):
             m = re.match(r"@@(\d+)@@ (.+)", line.strip())
             if m:
                 expr = m.group(2)
+                # C言語の整数サフィックス(1UL等)をPython評価用に除去
+                expr = re.sub(r"\b(0[xX][0-9a-fA-F]+|\d+)[uUlL]+\b", r"\1", expr)
                 try:
                     vals[todo[int(m.group(1))]] = int(eval(expr, {"__builtins__": {}}))  # noqa: S307
                 except Exception as e:
