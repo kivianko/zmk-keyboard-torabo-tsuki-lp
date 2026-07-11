@@ -17,6 +17,8 @@
 set -euo pipefail
 
 ARG="${1:-}"
+case "$ARG" in /*) ;; *) if [ -f "$ARG" ]; then ARG="$PWD/$ARG"; fi ;; esac  # 相対uf2パスを絶対化
+cd "$(dirname "$0")"   # どこから呼ばれてもリポジトリ基準で動く
 [ -z "$ARG" ] && { echo "usage: ./flash.sh <artifact-name | path.uf2>"; exit 1; }
 
 WORKFLOW="build.yml"
@@ -85,12 +87,17 @@ PY
 # --- 5. UF2ドライブのマウント待ち --------------------------------------------
 echo "==> ブートローダドライブのマウント待ち..."
 VOL=""
-for _ in $(seq 1 40); do   # 最大約20秒
+for i in $(seq 1 40); do   # 最大約20秒
   for v in /Volumes/*; do
     [ -e "$v/INFO_UF2.TXT" ] || continue
     case "$before" in *"$(basename "$v")"*) : ;; *) VOL="$v"; break ;; esac
   done
   [ -n "$VOL" ] && break
+  # ディスクは居るのにmacOSが自動マウントしないことがある → 自力でマウント
+  if [ $((i % 8)) -eq 0 ]; then
+    D=$(diskutil list 2>/dev/null | awk '/BLEMICROPRO/ {print $NF; exit}')
+    if [ -n "${D:-}" ]; then diskutil mount "$D" >/dev/null 2>&1 || true; fi
+  fi
   sleep 0.5
 done
 [ -z "$VOL" ] && { echo "ブートローダドライブが現れませんでした（手動でダブルリセットを試してください）"; exit 1; }
