@@ -24,18 +24,9 @@ BUILD_ONLY=0
 export ART="${1:-torabo_tsuki_lp_right_central}"
 
 # build.yaml から artifact-name に対応する shield/snippet を取得
+# (ヒアドキュメントを $() 内に置くと bash 3.2 でパース不能なため別ファイルに分離)
 cd "$ZMK_REPO"
-eval "$("$ZMK_VENV/bin/python3" - "$ART" <<'PY'
-import sys, yaml, shlex
-art = sys.argv[1]
-for e in yaml.safe_load(open("build.yaml"))["include"]:
-    if e.get("artifact-name") == art or (e.get("shield") == art and not e.get("artifact-name")):
-        print(f'export SHIELD={shlex.quote(e.get("shield",""))}')
-        print(f'export SNIPPET={shlex.quote(e.get("snippet",""))}')
-        sys.exit(0)
-print(f'echo "artifact \'{art}\' が build.yaml に見つかりません" >&2; exit 1')
-PY
-)"
+eval "$("$ZMK_VENV/bin/python3" "$ZMK_REPO/tools/build_query.py" "$ART" "$ZMK_REPO/build.yaml")"
 echo "==> build: $ART (shield=$SHIELD, snippets=${SNIPPET:-なし})"
 
 cd "$ZMK_WS"
