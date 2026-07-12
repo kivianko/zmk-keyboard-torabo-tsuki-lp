@@ -711,7 +711,7 @@ function renderSettings(){
   const st=EX.settings;
   $("stAml").checked=st.amlEnabled; $("stAmlTimeout").value=st.amlTimeout;
   $("stInvX").checked=st.invertX; $("stInvY").checked=st.invertY;
-  $("stCpi").value=st.cpi||""; $("stSleep").value=st.sleepMin;
+  $("stCpi").value=st.cpi||st.cpiDefault; $("stSleep").value=st.sleepMin;
   updateCpiDisplay();
   $("stScrInvX").checked=!!st.scrollInvertX; $("stScrInvY").checked=!!st.scrollInvertY;
   $("stScrDiv").value=st.scrollDiv||12; $("stScrDivVal").textContent=st.scrollDiv||12;
@@ -732,12 +732,16 @@ $("stScrDiv").addEventListener("input",e=>{EX.settings.scrollDiv=parseInt(e.targ
 function snapCpi(v){const st=EX.settings;v=Math.max(st.cpiMin,Math.min(st.cpiMax,v));return Math.round(v/st.cpiStep)*st.cpiStep;}
 function updateCpiDisplay(){
   const st=EX.settings, raw=parseInt($("stCpi").value);
-  if(raw){ const s=snapCpi(raw);
+  if(raw){
+    const s=snapCpi(raw), unset=(st.cpi==null);
     $("stCpiNow").textContent=s+" cpi";
-    $("stCpiHint").textContent=(s!==raw?`→ ${s} cpi に丸め (38刻み)。`:"")+`範囲 ${st.cpiMin}〜${st.cpiMax}、38刻み`;
+    $("stCpiHint").textContent=
+      (s!==raw?`→ ${s} cpi に丸め (38刻み)。`:"")
+      +(unset?"※現在は未設定(センサー標準値)。この値で保存すると明示的に固定されます。":"")
+      +`範囲 ${st.cpiMin}〜${st.cpiMax}、38刻み`;
   }else{
-    $("stCpiNow").textContent=`既定 (未設定・約${st.cpiDefault}cpi)`;
-    $("stCpiHint").textContent=`数値を入れると明示設定。範囲 ${st.cpiMin}〜${st.cpiMax}、38刻み`;
+    $("stCpiNow").textContent="—";
+    $("stCpiHint").textContent=`空欄=センサー既定(約${st.cpiDefault}cpi)。範囲 ${st.cpiMin}〜${st.cpiMax}、38刻み`;
   }
 }
 $("stCpi").addEventListener("input",e=>{EX.settings.cpi=parseInt(e.target.value)||null;updateCpiDisplay();updateExBar();});
