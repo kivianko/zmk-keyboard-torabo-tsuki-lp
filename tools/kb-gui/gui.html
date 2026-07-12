@@ -140,6 +140,15 @@
       </label>
       <div class="fld" style="max-width:260px"><label>感度 CPI (空欄=既定)</label>
         <input type="text" id="stCpi" inputmode="numeric" placeholder="例: 800 / 1200 / 1600"></div>
+      <h3 style="margin:20px 0 8px;font-size:15px">スクロール (layer_4 有効中)</h3>
+      <label style="display:flex;gap:8px;align-items:center;font-size:14px;margin:6px 0">
+        <input type="checkbox" id="stScrInvX"> 横方向を反転
+      </label>
+      <label style="display:flex;gap:8px;align-items:center;font-size:14px;margin:6px 0">
+        <input type="checkbox" id="stScrInvY"> 縦方向を反転
+      </label>
+      <div class="fld" style="max-width:320px"><label>速度: 1/<span id="stScrDivVal">12</span> 倍 (小さいほど速い)</label>
+        <input type="range" id="stScrDiv" min="2" max="24" step="1" style="width:100%"></div>
       <h3 style="margin:20px 0 8px;font-size:15px">電源</h3>
       <div class="fld" style="max-width:260px"><label>スリープまでの時間 (分) ※左右両方の書き込みが必要</label>
         <input type="text" id="stSleep" inputmode="numeric"></div>
@@ -700,15 +709,19 @@ function renderSettings(){
   $("stAml").checked=st.amlEnabled; $("stAmlTimeout").value=st.amlTimeout;
   $("stInvX").checked=st.invertX; $("stInvY").checked=st.invertY;
   $("stCpi").value=st.cpi||""; $("stSleep").value=st.sleepMin;
+  $("stScrInvX").checked=!!st.scrollInvertX; $("stScrInvY").checked=!!st.scrollInvertY;
+  $("stScrDiv").value=st.scrollDiv||12; $("stScrDivVal").textContent=st.scrollDiv||12;
   stExclSel=new Set(st.amlExcluded);
   chipSelector($("stExcl"), null, stExclSel);
   // chipSelectorはトグルでstExclSelを更新するので、変更をEXに同期するリスナーを張る
   $("stExcl").addEventListener("click",()=>{st.amlExcluded=[...stExclSel].sort((a,b)=>a-b);updateExBar();});
   updateExBar();
 }
-[["stAml","amlEnabled","checked"],["stInvX","invertX","checked"],["stInvY","invertY","checked"]].forEach(([id,k,prop])=>{
+[["stAml","amlEnabled","checked"],["stInvX","invertX","checked"],["stInvY","invertY","checked"],
+ ["stScrInvX","scrollInvertX","checked"],["stScrInvY","scrollInvertY","checked"]].forEach(([id,k,prop])=>{
   $(id).addEventListener("change",e=>{EX.settings[k]=e.target[prop];updateExBar();});
 });
+$("stScrDiv").addEventListener("input",e=>{EX.settings.scrollDiv=parseInt(e.target.value);$("stScrDivVal").textContent=e.target.value;updateExBar();});
 [["stAmlTimeout","amlTimeout"],["stSleep","sleepMin"]].forEach(([id,k])=>{
   $(id).addEventListener("input",e=>{EX.settings[k]=parseInt(e.target.value)||0;updateExBar();});
 });

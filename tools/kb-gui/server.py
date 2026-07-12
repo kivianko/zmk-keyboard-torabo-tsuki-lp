@@ -148,14 +148,25 @@ def parse_settings():
     excl_l = [s2l[int(x)] for x in excl.group(1).split() if int(x) in s2l] if excl else []
     sleep = re.search(r"CONFIG_ZMK_IDLE_SLEEP_TIMEOUT=(\d+)", conf)
     cpi = re.search(r"res-cpi\s*=\s*<(\d+)>;", tb)
+    # scroller ノード (スクロールレイヤーの入力処理)
+    scr = re.search(r"scroller\s*\{(.*?)\n    \};", r_ov, re.S)
+    scr_body = scr.group(1) if scr else ""
+    scr_div = re.search(r"zip_scroll_scaler\s+1\s+(\d+)", scr_body)
+    # AML判定用のinput-processorsはpointing_listener直下だけを見る(scroller内を除外)
+    pl = re.search(r"&pointing_listener\s*\{(.*?)\n\};", r_ov, re.S)
+    pl_body = (pl.group(1) if pl else "").replace(scr_body, "")
     return {
         "amlEnabled": bool(aml),
         "amlTimeout": int(aml.group(1)) if aml else 1000,
         "amlExcluded": excl_l,  # L番号で返す(GUIはL番号で扱う)
-        "invertX": "INPUT_TRANSFORM_X_INVERT" in r_ov,
-        "invertY": "INPUT_TRANSFORM_Y_INVERT" in r_ov,
+        "invertX": "INPUT_TRANSFORM_X_INVERT" in pl_body,
+        "invertY": "INPUT_TRANSFORM_Y_INVERT" in pl_body,
         "sleepMin": int(sleep.group(1)) // 60000 if sleep else 150,
         "cpi": int(cpi.group(1)) if cpi else None,
+        "scrollEnabled": bool(scr),
+        "scrollInvertX": "INPUT_TRANSFORM_X_INVERT" in scr_body,
+        "scrollInvertY": "INPUT_TRANSFORM_Y_INVERT" in scr_body,
+        "scrollDiv": int(scr_div.group(1)) if scr_div else 12,
     }
 
 
@@ -180,6 +191,21 @@ def write_settings(s):
         src = open(path).read()
         src = re.sub(r"CONFIG_ZMK_IDLE_SLEEP_TIMEOUT=\d+", f"CONFIG_ZMK_IDLE_SLEEP_TIMEOUT={int(s['sleepMin']) * 60000}", src)
         open(path, "w").write(src)
+    # スクロール (scrollerノードの input-processors を再生成、両overlay)
+    sflags = [f for f, on in (("INPUT_TRANSFORM_X_INVERT", s.get("scrollInvertX")),
+                              ("INPUT_TRANSFORM_Y_INVERT", s.get("scrollInvertY"))) if on]
+    sprocs = []
+    if sflags:
+        sprocs.append(f"<&zip_xy_transform ({' | '.join(sflags)})>")
+    sprocs.append("<&zip_xy_to_scroll_mapper>")
+    sprocs.append(f"<&zip_scroll_scaler 1 {max(1, int(s.get('scrollDiv', 12)))}>")
+    scroller_node = ("scroller {\n        layers = <4>;\n        input-processors =\n            "
+                     + ",\n            ".join(sprocs) + ";\n    };")
+    for path in OVERLAYS:
+        src = open(path).read()
+        if re.search(r"scroller\s*\{", src):
+            src = re.sub(r"scroller\s*\{.*?\n    \};", scroller_node, src, count=1, flags=re.S)
+            open(path, "w").write(src)
     # CPI (トラックボールスニペット)
     tb = open(TRACKBALL_OVERLAY).read()
     tb = re.sub(r"\n\s*res-cpi\s*=\s*<\d+>;", "", tb)
