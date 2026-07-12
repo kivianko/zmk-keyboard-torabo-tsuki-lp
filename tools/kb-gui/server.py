@@ -23,6 +23,8 @@ CONFS = [os.path.join(REPO, f"boards/shields/torabo_tsuki_lp/torabo_tsuki_lp_{s}
 TRACKBALL_OVERLAY = os.path.join(REPO, "snippets/input-trackball/input-trackball.overlay")
 ROWS = [12, 12, 14, 14, 14]
 PORT = 8756
+# PAW3222: CPIは38刻み、16〜127ステップ = 608〜4826。未設定時はセンサー既定(約800cpi)
+CPI_STEP, CPI_MIN, CPI_MAX, CPI_DEFAULT = 38, 608, 4826, 800
 
 BIND_RE = re.compile(r"&\S+(?:\s+[^&\s][^&]*?)?(?=\s*&|\s*$)")
 
@@ -163,6 +165,7 @@ def parse_settings():
         "invertY": "INPUT_TRANSFORM_Y_INVERT" in pl_body,
         "sleepMin": int(sleep.group(1)) // 60000 if sleep else 150,
         "cpi": int(cpi.group(1)) if cpi else None,
+        "cpiMin": CPI_MIN, "cpiMax": CPI_MAX, "cpiStep": CPI_STEP, "cpiDefault": CPI_DEFAULT,
         "scrollEnabled": bool(scr),
         "scrollInvertX": "INPUT_TRANSFORM_X_INVERT" in scr_body,
         "scrollInvertY": "INPUT_TRANSFORM_Y_INVERT" in scr_body,
@@ -206,11 +209,13 @@ def write_settings(s):
         if re.search(r"scroller\s*\{", src):
             src = re.sub(r"scroller\s*\{.*?\n    \};", scroller_node, src, count=1, flags=re.S)
             open(path, "w").write(src)
-    # CPI (トラックボールスニペット)
+    # CPI (トラックボールスニペット)。範囲外はビルドを壊す(BUILD_ASSERT)ため clamp+step丸め
     tb = open(TRACKBALL_OVERLAY).read()
     tb = re.sub(r"\n\s*res-cpi\s*=\s*<\d+>;", "", tb)
     if s.get("cpi"):
-        tb = tb.replace("spi-max-frequency = <2000000>;", f"spi-max-frequency = <2000000>;\n        res-cpi = <{int(s['cpi'])}>;")
+        cpi = max(CPI_MIN, min(CPI_MAX, int(s["cpi"])))
+        cpi = round(cpi / CPI_STEP) * CPI_STEP   # 38刻みに丸め(表示値=実効値に一致させる)
+        tb = tb.replace("spi-max-frequency = <2000000>;", f"spi-max-frequency = <2000000>;\n        res-cpi = <{cpi}>;")
     open(TRACKBALL_OVERLAY, "w").write(tb)
 
 # ===== ビルド =====
