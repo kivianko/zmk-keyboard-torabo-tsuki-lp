@@ -12,6 +12,9 @@
 #   zephyr-sdk-0.16.9/  ARMツールチェーン
 set -euo pipefail
 
+# GUIアプリ(Finder起動)経由だと最小PATHで nix が見えないため、標準の場所を明示的に通す
+export PATH="/nix/var/nix/profiles/default/bin:$HOME/.nix-profile/bin:/run/current-system/sw/bin:$PATH"
+
 export ZMK_TOOLCHAIN="${ZMK_TOOLCHAIN:-$HOME/dev/zmk-toolchain}"
 export ZMK_WS="$ZMK_TOOLCHAIN/ws"
 export ZMK_VENV="$ZMK_TOOLCHAIN/venv"
@@ -38,7 +41,9 @@ if ! nix shell nixpkgs#cmake nixpkgs#ninja nixpkgs#dtc -c sh -c '
     -DZephyr_DIR="$ZEPHYR_BASE/share/zephyr-package/cmake" \
     -DZMK_CONFIG="$ZMK_REPO/config" -DSHIELD="$SHIELD" -DZMK_EXTRA_MODULES="$ZMK_REPO"
 ' > "$LOG" 2>&1; then
-  echo "==> ビルド失敗。エラー抜粋:"; grep -B2 -A8 -iE "error|FAILED" "$LOG" | head -40
+  echo "==> ビルド失敗。エラー抜粋:"
+  _exc="$(grep -B2 -A8 -iE "error|FAILED|command not found|No such file" "$LOG" | head -40)"
+  if [ -n "$_exc" ]; then echo "$_exc"; else tail -25 "$LOG"; fi   # 抜粋が空でもログ末尾を出す
   echo "==> フルログ: $LOG"; exit 1
 fi
 grep -E "Wrote .* zmk.uf2|region.*used" "$LOG" | tail -1
