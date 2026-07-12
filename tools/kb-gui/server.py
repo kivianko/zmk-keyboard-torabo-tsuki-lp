@@ -23,8 +23,10 @@ CONFS = [os.path.join(REPO, f"boards/shields/torabo_tsuki_lp/torabo_tsuki_lp_{s}
 TRACKBALL_OVERLAY = os.path.join(REPO, "snippets/input-trackball/input-trackball.overlay")
 ROWS = [12, 12, 14, 14, 14]
 PORT = 8756
-# PAW3222: CPIは38刻み、16〜127ステップ = 608〜4826。未設定時はセンサー既定(約800cpi)
-CPI_STEP, CPI_MIN, CPI_MAX, CPI_DEFAULT = 38, 608, 4826, 800
+# PAW3222のハード分解能は38刻み(608〜4826)だが、GUIは分かりやすく50刻みで扱う。
+# 設定ファイルには50の倍数を書き、ドライバが内部で38に丸める(差は体感ゼロ)。
+# 範囲はハード有効域に収まる50の倍数 650〜4800 に制限。未設定時はセンサー既定(約800cpi)
+CPI_STEP, CPI_MIN, CPI_MAX, CPI_DEFAULT = 50, 650, 4800, 800
 
 BIND_RE = re.compile(r"&\S+(?:\s+[^&\s][^&]*?)?(?=\s*&|\s*$)")
 
@@ -213,8 +215,8 @@ def write_settings(s):
     tb = open(TRACKBALL_OVERLAY).read()
     tb = re.sub(r"\n\s*res-cpi\s*=\s*<\d+>;", "", tb)
     if s.get("cpi"):
-        cpi = max(CPI_MIN, min(CPI_MAX, int(s["cpi"])))
-        cpi = round(cpi / CPI_STEP) * CPI_STEP   # 38刻みに丸め(表示値=実効値に一致させる)
+        cpi = round(int(s["cpi"]) / CPI_STEP) * CPI_STEP        # 50刻みに丸め
+        cpi = max(CPI_MIN, min(CPI_MAX, cpi))                   # 有効域(650〜4800)にclamp
         tb = tb.replace("spi-max-frequency = <2000000>;", f"spi-max-frequency = <2000000>;\n        res-cpi = <{cpi}>;")
     open(TRACKBALL_OVERLAY, "w").write(tb)
 
