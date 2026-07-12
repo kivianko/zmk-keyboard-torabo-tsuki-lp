@@ -1,5 +1,7 @@
 name: Build ZMK firmware
-on: [push, pull_request, workflow_dispatch]
+# ローカルビルド(local.sh)とRPC反映へ移行したため自動ビルドは停止。
+# 必要な時だけ GitHub Actions画面から手動実行(workflow_dispatch)する保険として残す。
+on: [workflow_dispatch]
 
 jobs:
   build:
