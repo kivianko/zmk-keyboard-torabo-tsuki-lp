@@ -24,7 +24,7 @@
   &kp TAB  &kp Q  &kp W  &kp E  &kp R  &kp T  &kp Y  &kp U  &kp I  &kp O  &kp P  &kp BSPC
   &kp CAPS  &kp A  &kp S  &kp D  &kp F  &kp G  &mkp LCLK  &mkp RCLK  &kp H  &kp J  &kp K  &kp L  &kp MINUS  &kp SQT
   &kp LSHFT  &kp Z  &kp X  &kp C  &kp V  &kp B  &kp LANGUAGE_2  &kp LANGUAGE_1  &kp N  &kp M  &kp COMMA  &kp DOT  &mt RIGHT_SHIFT FSLH  &kp RSHFT
-  &kp LCTRL  &kp LCTRL  &kp LGUI  &kp LALT  &kp LGUI  &lt 2 SPACE  &kp LSHFT  &kp BSPC  &lt 3 RET  &kp BSPC  &kp RALT  &kp RGUI  &kp RCTRL  &kp RCTRL
+  &kp LCTRL  &kp DEL  &kp LGUI  &kp LALT  &kp LGUI  &lt 2 SPACE  &mt LSHFT LANGUAGE_2  &lt 1 LANGUAGE_1  &lt 3 RET  &none  &none  &kp RGUI  &kp BSPC  &kp RCTRL
             >;
         };
 
@@ -32,7 +32,7 @@
             bindings = <
   &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans
   &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans
-  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &mkp LCLK  &mkp RCLK  &trans  &trans  &trans
+  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &mkp LCLK  &mo 4  &mkp RCLK  &trans  &trans
   &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans
   &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans
             >;
@@ -40,11 +40,11 @@
 
         layer_2 {
             bindings = <
-&trans  &trans            &trans            &trans      &trans      &trans                      &trans          &trans         &trans            &trans             &trans         &trans
-&trans  &kp LS(NUMBER_1)  &kp LS(NUMBER_2)  &kp LS(N3)  &kp LS(N4)  &kp LS(N5)                  &kp LS(N6)      &kp LS(N7)     &kp LS(N8)        &kp LS(N9)         &kp LS(N0)     &trans
-&trans  &kp N1            &kp N2            &kp N3      &kp N4      &kp N5      &trans  &trans  &kp LEFT_BRACE  &kp MINUS      &kp EQUAL         &kp RIGHT_BRACE    &kp COLON      &trans
-&trans  &kp N6            &kp N7            &kp N8      &kp N9      &kp N0      &trans  &trans  &kp LS(MINUS)   &kp LS(EQUAL)  &kp LEFT_BRACKET  &kp RIGHT_BRACKET  &kp BACKSLASH  &trans
-&trans  &trans            &trans            &trans      &trans      &trans      &trans  &trans  &kp TAB         &kp DEL        &trans            &trans             &trans         &trans
+  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans
+  &trans  &trans  &kp EXCL  &kp HASH  &kp DLLR  &kp AMPS  &kp LBKT  &kp RBKT  &kp LBRC  &kp RBRC  &kp TILDE  &trans
+  &trans  &kp LS(TAB)  &kp DQT  &kp SQT  &kp GRAVE  &kp QMARK  &trans  &trans  &kp LPAR  &kp RPAR  &kp MINUS  &kp AT  &kp SEMI  &trans
+  &trans  &kp UP  &trans  &kp PIPE  &trans  &trans  &trans  &trans  &kp LT  &kp GT  &kp UNDER  &kp BSLH  &kp COLON  &trans
+  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans
             >;
         };
 
