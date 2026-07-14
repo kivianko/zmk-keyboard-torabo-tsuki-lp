@@ -281,11 +281,13 @@ def write_settings(s):
         sprocs.append(f"<&zip_xy_transform ({' | '.join(sflags)})>")
     sprocs.append("<&zip_xy_to_scroll_mapper>")
     sprocs.append(f"<&zip_scroll_scaler 1 {max(1, int(s.get('scrollDiv', 12)))}>")
-    scroller_node = ("scroller {\n        layers = <4>;\n        input-processors =\n            "
-                     + ",\n            ".join(sprocs) + ";\n    };")
     for path in OVERLAYS:
         src = open(path).read()
-        if re.search(r"scroller\s*\{", src):
+        m = re.search(r"scroller\s*\{.*?layers = <(\d+)>.*?\n    \};", src, re.S)
+        if m:
+            scroll_layer = m.group(1)   # 既存のスクロールレイヤー番号を保持(ハードコードしない)
+            scroller_node = (f"scroller {{\n        layers = <{scroll_layer}>;\n        input-processors =\n            "
+                             + ",\n            ".join(sprocs) + ";\n    };")
             src = re.sub(r"scroller\s*\{.*?\n    \};", scroller_node, src, count=1, flags=re.S)
             open(path, "w").write(src)
     # CPI (トラックボールスニペット)。範囲外はビルドを壊す(BUILD_ASSERT)ため clamp+step丸め

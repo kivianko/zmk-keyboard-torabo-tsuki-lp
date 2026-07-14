@@ -12,7 +12,7 @@
 };
 
 /* トラックボール操作で layer_1 を一時有効化し、無操作1秒で解除。
- * excluded-positions はクリック系キー(D/F/J/K)。押しても解除しない。
+ * excluded-positions は「押しても解除しないキー」(GUIで設定した位置)。現在=J/K/L(dev16/17/18)。
  * ※ 番号は「実行時のアクティブ物理レイアウト」の体系。本機は実行時Sレイアウトで動作しており
  *   (Studioで保存されたアクティブレイアウト設定+position-mapによる変換)、S体系では
  *   D=12 F=13 J=16 K=17 (USBログの position: 16 = J で実測確認済み)。
@@ -20,7 +20,7 @@
  * ※ require-prior-idle-ms は付けない: 付けると未活性中のキー入力で起動が延期され続け、
  *   ボールを動かしながらキーを押すと永久に活性化しない(初回活性化を阻害する)ため。 */
 &zip_temp_layer {
-    excluded-positions = <12 13 16 17>;
+    excluded-positions = <16 17 18>;
 };
 
 &size_s_transform {
