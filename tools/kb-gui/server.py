@@ -101,6 +101,43 @@ def add_layer():
     return n + 1
 
 
+def _remap_binding(b, m):
+    """バインディング文字列中のレイヤー番号参照(&lt/&mo/&to/&tog/&sl)を m(old->new)で置換"""
+    for beh in ("mo", "to", "tog", "sl"):
+        b = re.sub(rf"&{beh} (\d+)", lambda x: f"&{beh} {m[int(x.group(1))]}", b)
+    b = re.sub(r"&lt (\d+)", lambda x: f"&lt {m[int(x.group(1))]}", b)
+    return b
+
+
+def apply_layer_permutation(old_to_new):
+    """レイヤーを並べ替え、全参照を自動更新する再利用関数。
+    old_to_new: {旧index: 新index} の全単射。
+    更新対象: 各層の中身/順序, 層内の&lt/&mo/&to/&tog/&sl, combosのlayers,
+    overlayの #define AUTO_MOUSE_LAYER と scroller の layers。"""
+    layers = parse_layers()
+    n = len(layers)
+    assert sorted(old_to_new) == list(range(n)) and sorted(old_to_new.values()) == list(range(n)), \
+        f"全単射ではありません: {old_to_new}"
+    new_layers = [None] * n
+    for old, new in old_to_new.items():
+        new_layers[new] = [_remap_binding(b, old_to_new) for b in layers[old]]
+    write_keymap(new_layers)
+    # combos の layers = <...>
+    src = open(KEYMAP).read()
+    src = re.sub(r"(layers = <)([\d ]+)(>)",
+                 lambda x: x.group(1) + " ".join(str(old_to_new[int(v)]) for v in x.group(2).split()) + x.group(3),
+                 src)
+    open(KEYMAP, "w").write(src)
+    # overlays
+    for path in OVERLAYS:
+        s = open(path).read()
+        s = re.sub(r"(#define AUTO_MOUSE_LAYER )(\d+)",
+                   lambda x: x.group(1) + str(old_to_new[int(x.group(2))]), s)
+        s = re.sub(r"(layers = <)(\d+)(>)",
+                   lambda x: x.group(1) + str(old_to_new[int(x.group(2))]) + x.group(3), s)
+        open(path, "w").write(s)
+
+
 # ===== コンボ =====
 
 def parse_combos():

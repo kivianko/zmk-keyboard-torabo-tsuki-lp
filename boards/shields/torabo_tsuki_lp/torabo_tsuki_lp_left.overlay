@@ -3,7 +3,7 @@
 #include <dt-bindings/zmk/input_transform.h>
 
 /* オートマウスレイヤー: トラックボール操作で有効化する layer_1 */
-#define AUTO_MOUSE_LAYER 1
+#define AUTO_MOUSE_LAYER 4
 
 &pointing_listener {
     input-processors =
@@ -20,13 +20,13 @@
  * ※ require-prior-idle-ms は付けない: 付けると未活性中のキー入力で起動が延期され続け、
  *   ボールを動かしながらキーを押すと永久に活性化しない(初回活性化を阻害する)ため。 */
 &zip_temp_layer {
-    excluded-positions = <16 17 18>;
+    excluded-positions = <12 13 16 17>;
 };
 /* スクロールレイヤー: layer_4が有効な間はボールの動きをスクロールに変換
  * 方向はカーソルと同じ反転を適用。速度は zip_scroll_scaler 1 12 (1/12倍) で調整可 */
 &pointing_listener {
     scroller {
-        layers = <4>;
+        layers = <5>;
         input-processors =
             <&zip_xy_transform (INPUT_TRANSFORM_X_INVERT)>,
             <&zip_xy_to_scroll_mapper>,
