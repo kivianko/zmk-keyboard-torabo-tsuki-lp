@@ -20,7 +20,7 @@
  * ※ require-prior-idle-ms は付けない: 付けると未活性中のキー入力で起動が延期され続け、
  *   ボールを動かしながらキーを押すと永久に活性化しない(初回活性化を阻害する)ため。 */
 &zip_temp_layer {
-    excluded-positions = <12 13 16 17>;
+    excluded-positions = <16 17 18>;
 };
 
 &size_s_transform {
@@ -42,6 +42,6 @@
         input-processors =
             <&zip_xy_transform (INPUT_TRANSFORM_X_INVERT)>,
             <&zip_xy_to_scroll_mapper>,
-            <&zip_scroll_scaler 1 12>;
+            <&zip_scroll_scaler 1 18>;
     };
 };
