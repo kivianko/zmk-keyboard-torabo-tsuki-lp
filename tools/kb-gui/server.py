@@ -23,6 +23,24 @@ CONFS = [os.path.join(REPO, f"boards/shields/torabo_tsuki_lp/torabo_tsuki_lp_{s}
 TRACKBALL_OVERLAY = os.path.join(REPO, "snippets/input-trackball/input-trackball.overlay")
 ROWS = [12, 12, 14, 14, 14]
 PORT = 8756
+NAMES_FILE = os.path.join(os.path.dirname(__file__), "layer-names.json")
+
+
+def load_names(n=None):
+    """レイヤー名リストを返す。ファイルが無い/長さ不一致なら補完する。"""
+    try:
+        names = json.load(open(NAMES_FILE))
+    except Exception:
+        names = []
+    if n is None:
+        n = len(parse_layers())
+    while len(names) < n:
+        names.append(f"layer_{len(names)}")
+    return names[:n]
+
+
+def save_names(names):
+    json.dump(names, open(NAMES_FILE, "w"), ensure_ascii=False)
 # PAW3222のハード分解能は38刻み(608〜4826)だが、GUIは分かりやすく50刻みで扱う。
 # 設定ファイルには50の倍数を書き、ドライバが内部で38に丸める(差は体感ゼロ)。
 # 範囲はハード有効域に収まる50の倍数 650〜4800 に制限。未設定時はセンサー既定(約800cpi)
@@ -136,6 +154,28 @@ def apply_layer_permutation(old_to_new):
         s = re.sub(r"(layers = <)(\d+)(>)",
                    lambda x: x.group(1) + str(old_to_new[int(x.group(2))]) + x.group(3), s)
         open(path, "w").write(s)
+    # レイヤー名も同じ並びに
+    names = load_names(n)
+    new_names = [None] * n
+    for old, new in old_to_new.items():
+        new_names[new] = names[old]
+    save_names(new_names)
+
+
+def insert_layer(pos, name="追加レイヤー"):
+    """位置posに空レイヤーを挿入(pos以降は後ろにずれる)。参照も名前も自動更新。"""
+    n = len(parse_layers())
+    if not (1 <= pos <= n):
+        raise RuntimeError(f"挿入位置が不正: {pos} (1〜{n})")
+    add_layer()                      # 末尾(index n)に空レイヤー追加
+    names = load_names(n)
+    names.append(name)               # 名前も末尾に(index n)
+    save_names(names)
+    # 末尾の新レイヤーをposへ移動、pos以降を+1
+    perm = {i: (i if i < pos else i + 1) for i in range(n)}
+    perm[n] = pos
+    apply_layer_permutation(perm)
+    return n + 1
 
 
 # ===== コンボ =====
@@ -305,7 +345,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(body)
             elif self.path == "/keymap":
-                self._json({"layers": parse_layers(), "geom": geometry()})
+                self._json({"layers": parse_layers(), "geom": geometry(), "names": load_names()})
             elif self.path == "/extras":
                 self._json({"combos": parse_combos(), "settings": parse_settings()})
             elif self.path == "/build-status":
@@ -336,6 +376,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": True})
             elif self.path == "/layers/add":
                 self._json({"count": add_layer()})
+            elif self.path == "/layers/insert":
+                b = self._body()
+                self._json({"count": insert_layer(int(b["pos"]), b.get("name", "追加レイヤー"))})
             elif self.path == "/build":
                 if BUILD["running"]:
                     return self._json({"error": "ビルド実行中です"}, 409)
