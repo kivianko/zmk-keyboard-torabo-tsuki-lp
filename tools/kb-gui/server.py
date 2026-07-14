@@ -249,6 +249,8 @@ def parse_settings():
         "scrollInvertX": "INPUT_TRANSFORM_X_INVERT" in scr_body,
         "scrollInvertY": "INPUT_TRANSFORM_Y_INVERT" in scr_body,
         "scrollDiv": int(scr_div.group(1)) if scr_div else 12,
+        "scrollLayer": (int(re.search(r"layers = <(\d+)>", scr_body).group(1))
+                        if re.search(r"layers = <(\d+)>", scr_body) else None),
     }
 
 
